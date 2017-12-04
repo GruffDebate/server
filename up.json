@@ -1,0 +1,22 @@
+{
+  "name": "gruff",
+  "profile": "gruff",
+  "regions": ["us-west-2"],
+  "lambda": {
+    "memory": 128
+  },
+  "environment": {
+    "GRUFF_ENV": "DEVELOPMENT",
+    "GRUFF_DB": "host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable",
+    "GRUFF_NAME": "GRUFF",
+    "GRUFF_PORT": "8080",
+    "UP_STAGE": "development"
+  },
+  "cors": {
+    "enable": true
+  },
+  "hooks": {
+    "build": "./build.sh",
+    "clean": "rm server"
+  }
+}

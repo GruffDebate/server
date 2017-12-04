@@ -1,0 +1,22 @@
+machine:
+  services:
+    - docker
+
+database:
+  override:
+    - go get bitbucket.org/liamstask/goose/cmd/goose
+    - goose -env staging up
+
+test:
+  override:
+    - go generate && go build -v && go test ./api -v && go vet
+
+deployment:
+  master:
+    branch: master
+    commands:
+      - sh build
+      - docker build -t gruff/gruff-server .
+      - docker login -e $DOCKERHUB_EMAIL -u $DOCKERHUB_USER -p $DOCKERHUB_PASS
+      - docker tag gruff/gruff-server gruff/gruff-server:master
+      - docker push gruff/gruff-server:master
