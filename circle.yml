@@ -36,7 +36,6 @@ deployment:
       - npm i -g up
       - up version
       - up upgrade
-      - up env add GRUFF_DB "$DATABASE_URL_UP"
       - up deploy
   qa:
     branch: qa
@@ -46,7 +45,6 @@ deployment:
       - npm i -g up
       - up version
       - up upgrade
-      - up env add GRUFF_DB "$DATABASE_URL_UP"
       - up deploy
   dev:
     branch: dev
@@ -56,5 +54,4 @@ deployment:
       - npm i -g up
       - up version
       - up upgrade
-      - up env add GRUFF_DB "$DATABASE_URL_UP"
       - up deploy
