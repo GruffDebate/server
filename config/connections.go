@@ -12,15 +12,11 @@ var CONFIGURATIONS map[string]string = map[string]string{
 	"GRUFF_ENV":  "local",
 	"GRUFF_DB":   "host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable",
 	"GRUFF_NAME": "GRUFF",
-	"GRUFF_PORT": "8080",
 }
 
 func Init() {
 	if os.Getenv("GRUFF_NAME") == "" {
 		os.Setenv("GRUFF_NAME", CONFIGURATIONS["GRUFF_NAME"])
-	}
-	if os.Getenv("GRUFF_PORT") == "" {
-		os.Setenv("GRUFF_PORT", CONFIGURATIONS["GRUFF_PORT"])
 	}
 }
 

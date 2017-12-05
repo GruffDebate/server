@@ -35,7 +35,9 @@ deployment:
       - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
-      - up
+      - up upgrade
+      - up env add GRUFF_DB $DATABASE_URL_PROD
+      - up deploy
   qa:
     branch: qa
     commands:
@@ -43,7 +45,9 @@ deployment:
       - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
-      - up
+      - up upgrade
+      - up env add GRUFF_DB $DATABASE_URL_STAGING
+      - up deploy
   dev:
     branch: dev
     commands:
@@ -51,4 +55,6 @@ deployment:
       - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
-      - up
+      - up upgrade
+      - up env add GRUFF_DB $DATABASE_URL_DEV
+      - up deploy

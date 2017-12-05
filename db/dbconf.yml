@@ -1,21 +1,17 @@
 development:
   driver: postgres
-  open: host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable
+  open: $DATABASE_URL_DEV
+
+staging:
+  driver: postgres
+  open: $DATABASE_URL_STAGING
+
+production:
+  driver: postgres
+  open: $DATABASE_URL_PROD
 
 data:
   driver: postgres
   open: dbname=gruff_data sslmode=disable
-
-staging:
-  driver: postgres
-  open: host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable
-  
-ci:
-  driver: postgres
-  open: dbname=circle_test sslmode=disable
-
-production:
-  driver: postgres
-  open: host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable
 
 #open: $DATABASE_URL
