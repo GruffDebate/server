@@ -1,12 +1,12 @@
 database:
   override:
-   - go get bitbucket.org/liamstask/goose/cmd/goose
+    - go get bitbucket.org/liamstask/goose/cmd/goose
     - |
       if [[ $CIRCLE_BRANCH = 'dev' ]]; then
         goose -env development up
       fi
-      if [[ $CIRCLE_BRANCH = 'staging' ]]; then
-        goose -env staging up
+      if [[ $CIRCLE_BRANCH = 'qa' ]]; then
+        goose -env qa up
       fi
       if [[ $CIRCLE_BRANCH = 'master' ]]; then
         goose -env production up
