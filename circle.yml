@@ -1,3 +1,14 @@
+machine:
+  pre:
+    - sudo service postgresql stop
+    - sudo apt-get purge -y postgresql*
+    - sudo apt-get update
+    - sudo apt-get install postgresql
+    - sudo service postgresql start
+    - sudo su - postgres -c "echo \"create user ubuntu with password 'ubuntu';\" | psql"
+    - sudo su - postgres -c "echo \"alter user ubuntu with superuser;\" | psql"
+    - sudo su - postgres -c "echo \"create database gruff_test;\" | psql"
+
 database:
   override:
     - go get bitbucket.org/liamstask/goose/cmd/goose
