@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bigokro/gruff-server/gruff"
+	"github.com/GruffDebate/server/gruff"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo"
 	"golang.org/x/crypto/bcrypt"

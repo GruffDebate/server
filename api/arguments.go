@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bigokro/gruff-server/gruff"
+	"github.com/GruffDebate/server/gruff"
 	"github.com/google/uuid"
 	"github.com/labstack/echo"
 )

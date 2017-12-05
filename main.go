@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/bigokro/gruff-server/api"
-	"github.com/bigokro/gruff-server/config"
+	"github.com/GruffDebate/server/api"
+	"github.com/GruffDebate/server/config"
 )
 
 func main() {
@@ -17,9 +17,10 @@ func main() {
 	api.RW_DB_POOL.LogMode(true)
 
 	root := api.SetUpRouter(false, api.RW_DB_POOL)
+	addr := ":" + os.Getenv("PORT")
 
 	go func() {
-		if err := root.Start(":8080"); err != nil {
+		if err := root.Start(addr); err != nil {
 			root.Logger.Info("shutting down the server")
 		}
 	}()

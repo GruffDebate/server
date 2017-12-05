@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/bigokro/gruff-server/gruff"
-	"github.com/bigokro/gruff-server/support"
+	"github.com/GruffDebate/server/gruff"
+	"github.com/GruffDebate/server/support"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo"

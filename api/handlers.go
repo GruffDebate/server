@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bigokro/gruff-server/gruff"
+	"github.com/GruffDebate/server/gruff"
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo"
 )

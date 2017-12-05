@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/bigokro/gruff-server/gruff"
+	"github.com/GruffDebate/server/gruff"
 	"github.com/labstack/echo"
 )
 

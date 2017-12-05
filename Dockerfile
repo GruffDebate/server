@@ -11,13 +11,13 @@ RUN apk add --no-cache g++ glide
 RUN apk update && apk upgrade && \
     apk add --no-cache bash git openssh
 
-RUN mkdir -p /go/src/github.com/bigokro/gruff-server
+RUN mkdir -p /go/src/github.com/GruffDebate/server
 
-ADD . /go/src/github.com/bigokro/gruff-server
+ADD . /go/src/github.com/GruffDebate/server
 
-WORKDIR /go/src/github.com/bigokro/gruff-server
+WORKDIR /go/src/github.com/GruffDebate/server
 RUN glide install
     
-RUN go install github.com/bigokro/gruff-server
+RUN go install github.com/GruffDebate/server
 
 ENTRYPOINT ["/go/bin/gruff-server"]

@@ -1,5 +1,5 @@
 {
-  "name": "gruff",
+  "name": "gruffapi",
   "profile": "gruff",
   "regions": ["us-west-2"],
   "lambda": {
@@ -16,7 +16,7 @@
     "enable": true
   },
   "hooks": {
-    "build": "./build.sh",
+    "build": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server `ls *.go | grep -v _test.go`",
     "clean": "rm server"
   }
 }
