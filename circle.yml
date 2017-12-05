@@ -1,22 +1,37 @@
-machine:
-  services:
-    - docker
-
 database:
   override:
-    - go get bitbucket.org/liamstask/goose/cmd/goose
-    - goose -env staging up
+   - go get bitbucket.org/liamstask/goose/cmd/goose
+    - |
+      if [[ $CIRCLE_BRANCH = 'dev' ]]; then
+        goose -env development up
+      fi
+      if [[ $CIRCLE_BRANCH = 'staging' ]]; then
+        goose -env staging up
+      fi
+      if [[ $CIRCLE_BRANCH = 'master' ]]; then
+        goose -env production up
+      fi
 
 test:
   override:
-    - go generate && go build -v && go test ./api -v && go vet
+    - go generate && go build -v && go test ./api ./gruff -v && go vet
 
 deployment:
   master:
     branch: master
     commands:
-      - sh build
-      - docker build -t gruff/gruff-server .
-      - docker login -e $DOCKERHUB_EMAIL -u $DOCKERHUB_USER -p $DOCKERHUB_PASS
-      - docker tag gruff/gruff-server gruff/gruff-server:master
-      - docker push gruff/gruff-server:master
+      - npm i -g up
+      - up version
+      - up
+  qa:
+    branch: qa
+    commands:
+      - npm i -g up
+      - up version
+      - up
+  dev:
+    branch: dev
+    commands:
+      - npm i -g up
+      - up version
+      - up

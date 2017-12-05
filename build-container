@@ -1,3 +1,0 @@
-GOOS=linux bash build
-docker build -t gruff/gruff-server .
-rm gruff-server

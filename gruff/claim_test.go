@@ -1,8 +1,10 @@
 package gruff
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/GruffDebate/server/support"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateClaim(t *testing.T) {
@@ -35,8 +37,8 @@ func TestUpdateTruth(t *testing.T) {
 	TESTDB.Create(&a1)
 	TESTDB.Create(&a2)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.0, c1.Truth)
@@ -45,8 +47,8 @@ func TestUpdateTruth(t *testing.T) {
 	co1 := ClaimOpinion{UserID: 1, ClaimID: c1.ID, Truth: 0.5}
 	TESTDB.Create(&co1)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.5, c1.Truth)
@@ -55,8 +57,8 @@ func TestUpdateTruth(t *testing.T) {
 	co2 := ClaimOpinion{UserID: 2, ClaimID: c2.ID, Truth: 0.3}
 	TESTDB.Create(&co2)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.5, c1.Truth)
@@ -65,8 +67,8 @@ func TestUpdateTruth(t *testing.T) {
 	co3 := ClaimOpinion{UserID: 3, ClaimID: c2.ID, Truth: 0.5}
 	TESTDB.Create(&co3)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.5, c1.Truth)
@@ -81,8 +83,8 @@ func TestUpdateTruth(t *testing.T) {
 	TESTDB.Create(&co6)
 	TESTDB.Create(&co7)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.7, c1.Truth)
@@ -91,8 +93,8 @@ func TestUpdateTruth(t *testing.T) {
 	co6.Truth = 0.6
 	TESTDB.Save(&co6)
 
-	c1.UpdateTruth(CTX)
-	c2.UpdateTruth(CTX)
+	c1.UpdateTruth(&CTX)
+	c2.UpdateTruth(&CTX)
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
 	assert.Equal(t, 0.7, c1.Truth)
@@ -110,7 +112,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	TESTDB.Create(&c2)
 	TESTDB.Create(&c3)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.0, c1.TruthRU)
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.0, c1.TruthRU)
@@ -118,7 +120,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	a1 := Argument{Title: "A1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 0.7}
 	TESTDB.Create(&a1)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.85, c1.TruthRU)
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.85, c1.TruthRU)
@@ -126,7 +128,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	a2 := Argument{Title: "Heinz 57", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.7}
 	TESTDB.Create(&a2)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.675, c1.TruthRU)
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.675, c1.TruthRU)
@@ -134,7 +136,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	a3 := Argument{Title: "Worcestershire", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.8}
 	TESTDB.Create(&a3)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.415, c1.TruthRU)
 
 	a4 := Argument{Title: "Miracle Whip", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.2}
@@ -148,13 +150,13 @@ func TestUpdateTruthRU(t *testing.T) {
 	TESTDB.Create(&a7)
 	TESTDB.Create(&a8)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.5083, c1.TruthRU)
 
 	a9 := Argument{Title: "Tabasco", TargetClaimID: NUUID(c2.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 1.0}
 	TESTDB.Create(&a9)
 
-	(&c1).UpdateTruthRU(CTX)
+	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.5083, c1.TruthRU)
 }
 
@@ -183,7 +185,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	a4 := Argument{Title: "Argument 4", TargetArgumentID: NUUID(a1.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.65, Type: ARGUMENT_TYPE_PRO_STRENGTH}
 	TESTDB.Create(&a4)
 
-	a1.UpdateAncestorRUs(CTX)
+	a1.UpdateAncestorRUs(&CTX)
 
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
@@ -195,7 +197,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	TESTDB.First(&a3)
 	TESTDB.First(&a4)
 
-	assert.Equal(t, 0.67375, RoundToDecimal(c1.TruthRU, 5))
+	assert.Equal(t, 0.67375, support.RoundToDecimal(c1.TruthRU, 5))
 	assert.Equal(t, 1.0, c2.TruthRU)
 	assert.Equal(t, 0.5, c3.TruthRU)
 	assert.Equal(t, 0.0, c4.TruthRU)
@@ -205,8 +207,8 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	assert.Equal(t, 0.7, a3.StrengthRU)
 	assert.Equal(t, 0.65, a4.StrengthRU)
 
-	a2.UpdateAncestorRUs(CTX)
-	a3.UpdateAncestorRUs(CTX)
+	a2.UpdateAncestorRUs(&CTX)
+	a3.UpdateAncestorRUs(&CTX)
 
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
@@ -218,7 +220,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	TESTDB.First(&a3)
 	TESTDB.First(&a4)
 
-	assert.Equal(t, 0.67375, RoundToDecimal(c1.TruthRU, 5))
+	assert.Equal(t, 0.67375, support.RoundToDecimal(c1.TruthRU, 5))
 	assert.Equal(t, 1.0, c2.TruthRU)
 	assert.Equal(t, 0.5, c3.TruthRU)
 	assert.Equal(t, 0.0, c4.TruthRU)
@@ -228,7 +230,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	assert.Equal(t, 0.7, a3.StrengthRU)
 	assert.Equal(t, 0.65, a4.StrengthRU)
 
-	a4.UpdateAncestorRUs(CTX)
+	a4.UpdateAncestorRUs(&CTX)
 
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
@@ -240,7 +242,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	TESTDB.First(&a3)
 	TESTDB.First(&a4)
 
-	assert.Equal(t, 0.819188, RoundToDecimal(c1.TruthRU, 6))
+	assert.Equal(t, 0.819188, support.RoundToDecimal(c1.TruthRU, 6))
 	assert.Equal(t, 1.0, c2.TruthRU)
 	assert.Equal(t, 0.5, c3.TruthRU)
 	assert.Equal(t, 0.0, c4.TruthRU)
@@ -252,7 +254,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 
 	c5.TruthRU = 0.4
 	TESTDB.Save(&c5)
-	c5.UpdateAncestorRUs(CTX)
+	c5.UpdateAncestorRUs(&CTX)
 
 	TESTDB.First(&c1)
 	TESTDB.First(&c2)
@@ -264,7 +266,7 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	TESTDB.First(&a3)
 	TESTDB.First(&a4)
 
-	assert.Equal(t, 0.83300, RoundToDecimal(c1.TruthRU, 6))
+	assert.Equal(t, 0.83300, support.RoundToDecimal(c1.TruthRU, 6))
 	assert.Equal(t, 1.0, c2.TruthRU)
 	assert.Equal(t, 0.5, c3.TruthRU)
 	assert.Equal(t, 0.0, c4.TruthRU)

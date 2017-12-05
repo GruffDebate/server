@@ -8,13 +8,14 @@ data:
 
 staging:
   driver: postgres
-  open: dbname=gruff sslmode=disable
+  open: host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable
+  
 ci:
   driver: postgres
   open: dbname=circle_test sslmode=disable
 
 production:
   driver: postgres
-  open: dbname=gruff sslmode=disable
+  open: host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable
 
 #open: $DATABASE_URL
