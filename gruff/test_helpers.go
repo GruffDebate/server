@@ -3,9 +3,10 @@ package gruff
 import (
 	_ "errors"
 	"fmt"
+	"os"
+
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"os"
 )
 
 func InitTestDB() *gorm.DB {
@@ -20,8 +21,6 @@ func InitTestDB() *gorm.DB {
 	}
 
 	db.LogMode(false)
-
-	db.DB().SetMaxIdleConns(10)
 
 	runMigration(db)
 

@@ -31,18 +31,24 @@ deployment:
   master:
     branch: master
     commands:
+      - sudo chown -R $(whoami) /usr/local/bin/
+      - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
       - up
   qa:
     branch: qa
     commands:
+      - sudo chown -R $(whoami) /usr/local/bin/
+      - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
       - up
   dev:
     branch: dev
     commands:
+      - sudo chown -R $(whoami) /usr/local/bin/
+      - curl -sf https://up.apex.sh/install | sh
       - npm i -g up
       - up version
       - up
