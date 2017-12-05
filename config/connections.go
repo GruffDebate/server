@@ -10,7 +10,7 @@ import (
 
 var CONFIGURATIONS map[string]string = map[string]string{
 	"GRUFF_ENV":  "local",
-	"GRUFF_DB":   "host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable",
+	"GRUFF_DB":   "dbname=gruff sslmode=disable",
 	"GRUFF_NAME": "GRUFF",
 }
 
