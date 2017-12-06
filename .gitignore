@@ -3,6 +3,8 @@
 *.a
 *.so
 gruff-server
+.vscode
+*.vscode
 
 # Folders
 _obj
