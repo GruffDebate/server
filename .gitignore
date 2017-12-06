@@ -3,13 +3,13 @@
 *.a
 *.so
 gruff-server
-.vscode
-*.vscode
 
 # Folders
 _obj
 _test
 vendor/*
+vendor
+.vscode
 
 # Architecture specific extensions/prefixes
 *.[568vq]
