@@ -12,6 +12,10 @@ func AddPayloadWarning(c echo.Context, payload map[string]interface{}, code int,
 	return nil
 }
 
+func AddUnauthorizedError(c echo.Context, payload map[string]interface{}, code int, message string) error {
+	return c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": code, "message": message})
+}
+
 func AddPayloadError(c echo.Context, payload map[string]interface{}, code int, message string) error {
 	return c.JSON(http.StatusBadRequest, map[string]interface{}{"code": code, "message": message})
 }
@@ -45,6 +49,8 @@ func AddGruffError(ctx *gruff.ServerContext, c echo.Context, errGruff gruff.Gruf
 		err = AddPayloadWarning(c, ctx.Payload, code, errGruff.Error())
 	case 400:
 		err = AddPayloadError(c, ctx.Payload, code, errGruff.Error())
+	case 401:
+		err = AddUnauthorizedError(c, ctx.Payload, code, errGruff.Error())
 	case 403:
 		err = AddPermissionError(c, ctx.Payload, code, errGruff.Error())
 	case 404:

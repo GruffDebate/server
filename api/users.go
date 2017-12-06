@@ -45,7 +45,13 @@ func SignUp(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	return c.JSON(http.StatusCreated, u)
+	t, err := TokenForUser(*u)
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+	}
+	user := map[string]interface{}{"user": u, "token": t}
+
+	return c.JSON(http.StatusOK, user)
 }
 
 func SignIn(c echo.Context) error {
@@ -57,23 +63,27 @@ func SignIn(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
+	user := gruff.User{}
+
 	if u.Email != "" {
-		user := gruff.User{}
 		if err := db.Where("email = ?", u.Email).Find(&user).Error; err != nil {
 			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 		}
-
-		if ok, _ := verifyPassword(user, u.Password); ok {
-
-			t, err := TokenForUser(user)
-			if err != nil {
-				return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
-			}
-			u := map[string]interface{}{"user": user, "token": t}
-
-			return c.JSON(http.StatusOK, u)
-
+	} else if u.Username != "" {
+		if err := db.Where("username = ?", u.Username).Find(&user).Error; err != nil {
+			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 		}
+	}
+
+	if ok, _ := verifyPassword(user, u.Password); ok {
+		t, err := TokenForUser(user)
+		if err != nil {
+			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+		}
+
+		u := map[string]interface{}{"user": user, "token": t}
+
+		return c.JSON(http.StatusOK, u)
 	}
 
 	return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))

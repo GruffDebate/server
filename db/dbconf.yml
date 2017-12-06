@@ -14,4 +14,8 @@ data:
   driver: postgres
   open: dbname=gruff_data sslmode=disable
 
+local:
+  driver: postgres
+  open: dbname=gruff sslmode=disable
+
 #open: $DATABASE_URL

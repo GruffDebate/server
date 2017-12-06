@@ -144,11 +144,6 @@ INSERT INTO "arguments" ("created_by_id", "target_claim_id","claim_id","type","s
 
 INSERT INTO "links" ("created_by_id", "description", "title", "url", "claim_id") SELECT 1, 'An article from Fox News discussing the many impacts Fidel Castro had on life in Cuba', 'From Milk to Lightbulbs Fidel Castro Reshaped Life in Cuba', 'http://www.foxnews.com/world/2016/11/28/from-milk-to-lightbulbs-fidel-castro-reshaped-life-in-cuba.html', d.id FROM claims d WHERE title = 'A Fox News article mentions that Fidel Castro sent Cuban doctors to other countries to help with their health system';
 
-
-
-
-
-
 -- Root Con-truth Arguments
 
 INSERT INTO "claims" ("created_by_id","truth","description","title") VALUES ('1','0.5','','Fidel Castro executed thousands of people for being political dissidents');
