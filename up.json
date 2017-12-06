@@ -3,37 +3,15 @@
   "profile": "gruff",
   "regions": ["us-west-2"],
   "lambda": {
-    "memory": 128
+    "memory": 256
   },
   "environment": {
     "GRUFF_ENV": "DEVELOPMENT",
     "GRUFF_DB": "host=gruff.c7qnzdzjyjrm.us-west-2.rds.amazonaws.com user=gruff dbname=gruff password=gruffdeveloper7240 sslmode=disable",
     "GRUFF_NAME": "GRUFF"
   },
-  "cors": {
-    "enable": true
-  },
   "hooks": {
     "build": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server `ls *.go | grep -v _test.go`",
     "clean": "rm server"
-  },
-  "gruff.org": [
-    {
-      "name": "api.gruff.org",
-      "type": "A",
-      "ttl": 300,
-      "value": ["gruff.org"]
-    }
-  ],
-  "stages": {
-    "production": {
-      "domain": "api.gruff.org"
-    },
-    "staging": {
-      "domain": "api-stage.gruff.org"
-    },
-    "development": {
-      "domain": "api-dev.gruff.org"
-    }
   }
 }

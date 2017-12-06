@@ -51,7 +51,7 @@ func SignUp(c echo.Context) error {
 	}
 	user := map[string]interface{}{"user": u, "token": t}
 
-	return c.JSON(http.StatusOK, user)
+	return c.JSON(http.StatusCreated, user)
 }
 
 func SignIn(c echo.Context) error {
