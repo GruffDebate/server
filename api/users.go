@@ -140,3 +140,72 @@ func ChangePassword(c echo.Context) error {
 
 	return AddGruffError(ctx, c, gruff.NewNotFoundError("Not Found"))
 }
+
+func GetMe(c echo.Context) error {
+	ctx := ServerContext(c)
+	db := ctx.Database
+
+	user := gruff.User{}
+
+	db = BasicJoins(ctx, c, db)
+	db = db.Where("id = ?", ctx.UserContext.ID)
+
+	err := db.Find(&user).Error
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	return c.JSON(http.StatusOK, user)
+}
+
+func UpdateMe(c echo.Context) error {
+	ctx := ServerContext(c)
+	db := ctx.Database
+
+	user := gruff.User{}
+
+	db = db.Where("id = ?", ctx.UserContext.ID)
+	err := db.Find(&user).Error
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	err = BasicValidationForUpdate(ctx, c, &user)
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	if err := c.Bind(&user); err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	err = db.Save(&user).Error
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	return c.JSON(http.StatusOK, user)
+}
+
+func ListClaimsUser(c echo.Context) error {
+	ctx := ServerContext(c)
+	db := ctx.Database
+
+	claims := []gruff.Claim{}
+
+	db = BasicJoins(ctx, c, db)
+	db = db.Where("created_by_id = ?", ctx.UserContext.ID)
+	db = BasicPaging(ctx, c, db)
+
+	err := db.Find(&claims).Error
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	if ctx.Payload["ct"] != nil {
+		ctx.Payload["results"] = claims
+		return c.JSON(http.StatusOK, ctx.Payload)
+	}
+
+	return c.JSON(http.StatusOK, claims)
+}

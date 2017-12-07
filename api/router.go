@@ -48,10 +48,14 @@ func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
 
 	private.GET("/users", List)
 	private.GET("/users/:id", Get)
+	private.GET("/users/me", GetMe)
+	private.PUT("/users/me", UpdateMe)
 	private.PUT("/users/:id", Update)
 	private.PUT("/users/password", ChangePassword)
 	public.PUT("/users/changePassword", ChangePassword)
 	private.DELETE("/users/:id", Delete)
+
+	private.GET("/users/claims", ListClaimsUser)
 
 	public.GET("/arguments", List)
 	public.GET("/arguments/:id", GetArgument)

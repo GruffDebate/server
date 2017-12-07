@@ -15,6 +15,7 @@ type User struct {
 	Image           string     `json:"img,omitempty"`
 	Curator         bool       `json:"curator"`
 	Admin           bool       `json:"admin"`
+	URL             string     `json:"url,omitempty"`
 	EmailVerifiedAt *time.Time `json:"-" settable:"false"`
 }
 

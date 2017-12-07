@@ -25,7 +25,7 @@ database:
 
 test:
   override:
-    - go test ./gruff ./api -v
+    - go test ./gruff ./api ./support -v
 
 deployment:
   master:

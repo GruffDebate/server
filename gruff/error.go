@@ -105,6 +105,11 @@ func NewNotFoundError(msg string, opts ...interface{}) GruffError {
 }
 
 func NewServerError(msg string, opts ...interface{}) GruffError {
+	if strings.Contains(msg, "uix_users_email") {
+		msg = "Email is already in use"
+		opts = []interface{}{ERROR_SUBCODE_EMAIL_TAKEN}
+	}
+
 	return newElipsisError(ERROR_CODE_SERVER_ERROR, msg, opts...)
 }
 
