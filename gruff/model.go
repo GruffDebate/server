@@ -16,6 +16,10 @@ type Model struct {
 	DeletedAt *time.Time `json:"-" settable:"false"`
 }
 
+type ReplaceMany struct {
+	IDS []uint64 `json:"ids"`
+}
+
 type ServerContext struct {
 	Database    *gorm.DB
 	Payload     map[string]interface{}

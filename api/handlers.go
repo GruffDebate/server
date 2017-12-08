@@ -93,7 +93,7 @@ func Update(c echo.Context) error {
 	}
 
 	item := reflect.New(ctx.Type).Interface()
-	err := ctx.Database.Where("id = ?", id).First(item).Error
+	err := db.Where("id = ?", id).First(item).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
@@ -184,6 +184,36 @@ func AddAssociation(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, item)
+}
+
+func ReplaceAssociation(c echo.Context) error {
+	ctx := ServerContext(c)
+	db := ctx.Database
+
+	parentID := c.Param("parentId")
+
+	model := gruff.ReplaceMany{}
+	if err := c.Bind(&model); err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	parentItem := reflect.New(ctx.ParentType).Interface()
+	if err := db.Where("id = ?", parentID).First(parentItem).Error; err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	items := reflect.New(reflect.SliceOf(ctx.Type)).Interface()
+	err := db.Where("id in (?)", model.IDS).Find(items).Error
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	associationName := AssociationFieldNameFromPath(c)
+	if err := db.Model(parentItem).Association(associationName).Replace(items).Error; err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	return c.JSON(http.StatusOK, items)
 }
 
 func RemoveAssociation(c echo.Context) error {
