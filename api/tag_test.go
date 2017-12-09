@@ -104,6 +104,33 @@ func TestDeleteTags(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.Code)
 }
 
+func TestListClaimsByTags(t *testing.T) {
+	setup()
+	defer teardown()
+
+	r := New(Token)
+
+	t1 := createTag()
+	TESTDB.Create(&t1)
+
+	c1 := gruff.Claim{Title: "Claim 1", Description: "Claim 1", Truth: 0.23094}
+	c2 := gruff.Claim{Title: "Claim 2", Description: "Claim 2", Truth: 0.23094}
+	c3 := gruff.Claim{Title: "Claim 3", Description: "Claim 3", Truth: 0.23094}
+	TESTDB.Create(&c1)
+	TESTDB.Create(&c2)
+	TESTDB.Create(&c3)
+
+	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t1.ID, c1.ID)
+	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t1.ID, c2.ID)
+
+	expectedResults, _ := json.Marshal([]gruff.Claim{c1, c2})
+
+	r.GET(fmt.Sprintf("/api/tags/%d/claims", t1.ID))
+	res, _ := r.Run(Router())
+	assert.Equal(t, string(expectedResults), res.Body.String())
+	assert.Equal(t, http.StatusOK, res.Code)
+}
+
 func createTag() gruff.Tag {
 	t := gruff.Tag{
 		Title: "Tag",

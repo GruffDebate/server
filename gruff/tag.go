@@ -2,7 +2,8 @@ package gruff
 
 type Tag struct {
 	Model
-	Title string `json:"title" sql:"not null" valid:"length(3|50)"`
+	Title  string  `json:"title" sql:"not null" valid:"length(3|50)"`
+	Claims []Claim `json:"claims,omitempty"  gorm:"many2many:claim_tags;"`
 }
 
 func (t Tag) ValidateForCreate() GruffError {

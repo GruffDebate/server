@@ -103,6 +103,8 @@ func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
 	private.PUT("/tags/:id", Update)
 	private.DELETE("/tags/:id", Delete)
 
+	public.GET("/tags/:id/claims", ListClaimsByTag)
+
 	public.GET("/values", List)
 	public.GET("/values/:id", Get)
 	private.POST("/values", Create)
