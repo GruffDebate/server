@@ -147,7 +147,6 @@ func (a Argument) ValidateIDs() GruffError {
 	}
 	if a.TargetClaimID != nil && a.TargetArgumentID != nil {
 		return NewBusinessError("An Argument can have only one target Claim or target Argument ID")
-
 	}
 	return nil
 }

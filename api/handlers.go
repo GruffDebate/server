@@ -6,8 +6,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/GruffDebate/server/gruff"
+	"github.com/GruffDebate/server/support"
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo"
 )
@@ -98,12 +100,28 @@ func Update(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	err = BasicValidationForUpdate(ctx, c, item)
-	if err != nil {
+	if err := c.Bind(item); err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	if err := c.Bind(item); err != nil {
+	body := gruff.ModelToJson(item)
+	requestMap := make(map[string]interface{})
+	err = gruff.JsonToModel(body, &requestMap)
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewBusinessError("Error reading request data: "+err.Error()))
+	}
+
+	fields := make([]string, 0)
+	for fieldName, newVal := range requestMap {
+		typeField, _ := gruff.GetFieldByJsonTag(item, fieldName)
+		if typeField != nil && shouldUpdateField(*typeField) {
+			gruff.SetByJsonTag(item, fieldName, newVal)
+			fields = append(fields, typeField.Name)
+		}
+	}
+
+	err = BasicValidationForUpdate(ctx, c, item, fields)
+	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
@@ -346,7 +364,7 @@ func itemsOrEmptySlice(t reflect.Type, items interface{}) interface{} {
 }
 
 func BasicValidationForCreate(ctx *gruff.ServerContext, c echo.Context, item interface{}) gruff.GruffError {
-	if gruff.IsValidator(reflect.TypeOf(item)) {
+	if gruff.IsValidator(ctx.Type) {
 		validator := item.(gruff.Validator)
 		return validator.ValidateForCreate()
 	}
@@ -354,10 +372,39 @@ func BasicValidationForCreate(ctx *gruff.ServerContext, c echo.Context, item int
 	return nil
 }
 
-func BasicValidationForUpdate(ctx *gruff.ServerContext, c echo.Context, item interface{}) error {
+func BasicValidationForUpdate(ctx *gruff.ServerContext, c echo.Context, item interface{}, fields []string) error {
 	if gruff.IsValidator(ctx.Type) {
-		return gruff.ValidateStructFields(item)
+		validator := item.(gruff.Validator)
+		return validator.ValidateForUpdate()
 	}
 
 	return nil
+}
+
+func shouldUpdateField(field reflect.StructField) bool {
+	tag := field.Tag
+	if tag.Get("settable") == "false" {
+		return false
+	}
+
+	timeType := reflect.TypeOf(time.Time{})
+	timestampType := reflect.TypeOf(support.Timestamp{})
+	nullableTimestampType := reflect.TypeOf(support.NullableTimestamp{})
+
+	should := true
+	typ := field.Type
+	kind := typ.Kind()
+
+	if kind == reflect.Ptr {
+		typ = field.Type.Elem()
+		kind = typ.Kind()
+	}
+
+	should = should && kind != reflect.Array
+	should = should && kind != reflect.Slice
+	should = should && kind != reflect.Struct
+	should = should || typ == timeType
+	should = should || typ == timestampType
+	should = should || typ == nullableTimestampType
+	return should
 }

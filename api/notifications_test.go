@@ -3,10 +3,12 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/GruffDebate/server/gruff"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+
+	"github.com/GruffDebate/server/gruff"
+	"github.com/petmondo/petmondo-server/support"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestListNotifications(t *testing.T) {
@@ -20,13 +22,13 @@ func TestListNotifications(t *testing.T) {
 
 	r := New(tokenForTestUser(u1))
 
-	n1 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
-	n2 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
-	n3 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM), NewID: gruff.NewNUUID(), NewType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
-	n4 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM), Viewed: true}
-	n5 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
-	n6 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), NewID: gruff.NewNUUID(), NewType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
-	n7 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n1 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
+	n2 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
+	n3 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM), NewID: gruff.NewNUUID(), NewType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n4 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM), Viewed: true}
+	n5 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n6 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), NewID: gruff.NewNUUID(), NewType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n7 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
 	TESTDB.Create(&n1)
 	TESTDB.Create(&n2)
 	TESTDB.Create(&n3)
@@ -54,11 +56,11 @@ func TestMarkNotificationViewed(t *testing.T) {
 
 	r := New(tokenForTestUser(u1))
 
-	n1 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
-	n2 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
-	n3 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM), NewID: gruff.NewNUUID(), NewType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
-	n4 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_CLAIM), Viewed: true}
-	n5 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: gruff.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n1 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
+	n2 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM)}
+	n3 := gruff.Notification{UserID: u2.ID, Type: gruff.NOTIFICATION_TYPE_NEW_ARGUMENT, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM), NewID: gruff.NewNUUID(), NewType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
+	n4 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_CLAIM), Viewed: true}
+	n5 := gruff.Notification{UserID: u1.ID, Type: gruff.NOTIFICATION_TYPE_MOVED, ItemID: gruff.NewNUUID(), ItemType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT), OldID: gruff.NewNUUID(), OldType: support.IntPtr(gruff.OBJECT_TYPE_ARGUMENT)}
 	TESTDB.Create(&n1)
 	TESTDB.Create(&n2)
 	TESTDB.Create(&n3)

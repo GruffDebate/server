@@ -50,3 +50,6 @@
 
 [[constraint]]
   name = "golang.org/x/crypto"
+
+[[constraint]]
+  name = "github.com/badoux/goscraper"

@@ -123,7 +123,7 @@ func ChangePassword(c echo.Context) error {
 	}
 
 	user := gruff.User{}
-	err := db.Where("email = ?", u.Email).Find(&user).Error
+	err := db.Where("id = ?", ctx.UserContext.ID).Find(&user).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
@@ -170,7 +170,7 @@ func UpdateMe(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	err = BasicValidationForUpdate(ctx, c, &user)
+	err = BasicValidationForUpdate(ctx, c, &user, []string{})
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}

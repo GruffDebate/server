@@ -67,7 +67,7 @@ func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
 	private.POST("/arguments/:id/strength", SetScore)
 	private.PUT("/arguments/:id/strength", SetScore)
 
-	public.GET("/contexts", List)
+	public.GET("/contexts", ListContext)
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
 	private.PUT("/contexts/:id", Update)

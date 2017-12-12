@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/GruffDebate/server/support"
 	"github.com/jinzhu/gorm"
 )
 
@@ -97,10 +98,71 @@ func JsonToModel(jsonStr string, item interface{}) error {
 	return err
 }
 
-func UintPtr(val uint64) *uint64 {
-	return &val
+func GetFieldByJsonTag(item interface{}, jsonKey string) (field *reflect.StructField, gerr GruffError) {
+	data := map[string]interface{}{
+		"type": reflect.TypeOf(item),
+		"key":  jsonKey,
+	}
+
+	if jsonKey == "" || jsonKey == "-" {
+		return nil, NewBusinessError("Invalid JSON key", data)
+	}
+
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil, NewBusinessError("Cannot set value on nil item", data)
+		}
+		v = reflect.ValueOf(item).Elem()
+	}
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		fKey := support.JsonName(f)
+		if fKey == jsonKey {
+			return &f, nil
+		}
+	}
+
+	return nil, NewNotFoundError("field not found", data)
 }
 
-func IntPtr(val int) *int {
-	return &val
+func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffError {
+	data := map[string]interface{}{
+		"type": reflect.TypeOf(item),
+		"key":  jsonKey,
+		"val":  newVal,
+	}
+
+	if jsonKey == "" || jsonKey == "-" {
+		return NewBusinessError("Invalid JSON key", data)
+	}
+
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return NewBusinessError("Cannot set value on nil item", data)
+		}
+		v = v.Elem()
+	}
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag
+		fKey := support.JsonName(f)
+		vField := v.Field(i)
+		if fKey == jsonKey {
+			if tag.Get("settable") == "false" {
+				return NewPermissionError("field is unsettable", data)
+			}
+			destType := vField.Type()
+			if destType.Kind() == reflect.Ptr {
+				destType = destType.Elem()
+			}
+			support.SetValue(vField.Addr(), destType, newVal)
+			return nil
+		}
+	}
+
+	return NewNotFoundError("field not found", data)
 }

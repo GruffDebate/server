@@ -3,6 +3,7 @@ package gruff
 import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
+	"github.com/petmondo/petmondo-server/support"
 )
 
 const OBJECT_TYPE_CLAIM int = 1
@@ -43,9 +44,9 @@ func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId uuid.UUID, old
 		UserID:   userId,
 		Type:     NOTIFICATION_TYPE_MOVED,
 		ItemID:   NUUID(argId),
-		ItemType: IntPtr(OBJECT_TYPE_ARGUMENT),
+		ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
 		OldID:    NUUID(oldTargetId),
-		OldType:  IntPtr(oldTargetType),
+		OldType:  support.IntPtr(oldTargetType),
 	}
 	if err := ctx.Database.Create(&n).Error; err != nil {
 		return NewServerError(err.Error())
@@ -58,9 +59,9 @@ func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId uu
 		UserID:   userId,
 		Type:     NOTIFICATION_TYPE_PARENT_MOVED,
 		ItemID:   NUUID(parentArgId),
-		ItemType: IntPtr(OBJECT_TYPE_ARGUMENT),
+		ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
 		OldID:    NUUID(oldTargetId),
-		OldType:  IntPtr(oldTargetType),
+		OldType:  support.IntPtr(oldTargetType),
 	}
 	if err := ctx.Database.Create(&n).Error; err != nil {
 		return NewServerError(err.Error())
@@ -73,14 +74,14 @@ func NotifyNewArgument(ctx ServerContext, userId uint64, item interface{}, newAr
 		UserID:  userId,
 		Type:    NOTIFICATION_TYPE_NEW_ARGUMENT,
 		NewID:   NUUID(newArg.ID),
-		NewType: IntPtr(OBJECT_TYPE_ARGUMENT),
+		NewType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
 	}
 	if claim, ok := item.(Claim); ok {
 		n.ItemID = NUUID(claim.ID)
-		n.ItemType = IntPtr(OBJECT_TYPE_CLAIM)
+		n.ItemType = support.IntPtr(OBJECT_TYPE_CLAIM)
 	} else if arg, ok := item.(Argument); ok {
 		n.ItemID = NUUID(arg.ID)
-		n.ItemType = IntPtr(OBJECT_TYPE_ARGUMENT)
+		n.ItemType = support.IntPtr(OBJECT_TYPE_ARGUMENT)
 	}
 	if err := ctx.Database.Create(&n).Error; err != nil {
 		return NewServerError(err.Error())
