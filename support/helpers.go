@@ -18,6 +18,10 @@ func UintPtr(u uint) *uint {
 	return &u
 }
 
+func IntPtr(i int) *int {
+	return &i
+}
+
 func AUintToAInt(au []uint) []int {
 	ai := make([]int, len(au))
 	for i := 0; i < len(au); i++ {
