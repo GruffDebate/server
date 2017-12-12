@@ -390,9 +390,9 @@ func TestCreateArgumentWithNewClaimAndContexts(t *testing.T) {
 	}
 	TESTDB.Create(&d2)
 
-	c1 := gruff.Context{Title: "Taylor Swift", Url: "http://en.wikipedia.com/Taylor_Swift"}
-	c2 := gruff.Context{Title: "Donald Trump", Url: "http://en.wikipedia.com/Donald_Trump"}
-	c3 := gruff.Context{Title: "Bozo the Clown", Url: "http://en.wikipedia.com/Bozo_the_Clown"}
+	c1 := gruff.Context{Title: "Taylor Swift", URL: "http://en.wikipedia.com/Taylor_Swift"}
+	c2 := gruff.Context{Title: "Donald Trump", URL: "http://en.wikipedia.com/Donald_Trump"}
+	c3 := gruff.Context{Title: "Bozo the Clown", URL: "http://en.wikipedia.com/Bozo_the_Clown"}
 	TESTDB.Create(&c1)
 	TESTDB.Create(&c2)
 	TESTDB.Create(&c3)
@@ -573,7 +573,26 @@ func TestUpdateArgument(t *testing.T) {
 
 	r := New(Token)
 
-	a1 := createArgument()
+	d1 := gruff.Claim{
+		Title:       "Claim",
+		Description: "This is a test Claim",
+		Truth:       0.001,
+	}
+	d2 := gruff.Claim{
+		Title:       "Another Claim",
+		Description: "This a target claim",
+		Truth:       1.000,
+	}
+	TESTDB.Create(&d1)
+	TESTDB.Create(&d2)
+
+	a1 := gruff.Argument{
+		ClaimID:       d1.ID,
+		TargetClaimID: &gruff.NullableUUID{UUID: d2.ID},
+		Type:          gruff.ARGUMENT_TYPE_CON_TRUTH,
+		Title:         "This is an argument",
+		Description:   "This is an arguous description",
+	}
 	TESTDB.Create(&a1)
 
 	r.PUT(fmt.Sprintf("/api/arguments/%s", a1.ID))

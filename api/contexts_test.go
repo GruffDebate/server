@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/GruffDebate/server/gruff"
+	"github.com/badoux/goscraper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +22,20 @@ func TestListContexts(t *testing.T) {
 	TESTDB.Create(&u1)
 	TESTDB.Create(&u2)
 
-	expectedResults, _ := json.Marshal([]gruff.Context{u1, u2})
+	contexts := []gruff.Context{u1, u2}
+
+	for i := range contexts {
+		s, _ := goscraper.Scrape(contexts[i].URL, 1)
+
+		contexts[i].MetaDataURL = &gruff.MetaData{
+			Title:       s.Preview.Title,
+			Description: s.Preview.Description,
+			Image:       s.Preview.Images[0],
+			URL:         s.Preview.Link,
+		}
+	}
+
+	expectedResults, _ := json.Marshal(contexts)
 
 	r.GET("/api/contexts")
 	res, _ := r.Run(Router())
@@ -260,7 +274,7 @@ func createContext() gruff.Context {
 	c := gruff.Context{
 		Title:       "contexts",
 		Description: "contexts",
-		Url:         "https://en.wikipedia.org/wiki/Peter_Christen_Asbj%C3%B8rnsen",
+		URL:         "https://en.wikipedia.org/wiki/Peter_Christen_Asbj%C3%B8rnsen",
 	}
 
 	return c
