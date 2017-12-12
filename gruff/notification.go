@@ -1,9 +1,9 @@
 package gruff
 
 import (
+	"github.com/GruffDebate/server/support"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
-	"github.com/petmondo/petmondo-server/support"
 )
 
 const OBJECT_TYPE_CLAIM int = 1

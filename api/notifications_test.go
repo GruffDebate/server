@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/GruffDebate/server/gruff"
-	"github.com/petmondo/petmondo-server/support"
+	"github.com/GruffDebate/server/support"
 	"github.com/stretchr/testify/assert"
 )
 
