@@ -65,6 +65,7 @@ func ListTopClaims(c echo.Context) error {
 	claims := []gruff.Claim{}
 
 	db = BasicJoins(ctx, c, db)
+	db = BasicFetch(ctx, c, db, ctx.UserContext.ID)
 	db = db.Where("0 = (SELECT COUNT(*) FROM arguments WHERE claim_id = claims.id)")
 	db = BasicPaging(ctx, c, db)
 

@@ -8,7 +8,7 @@ import (
 type User struct {
 	Model
 	Name            string     `json:"name" sql:"not null" valid:"length(3|50)"`
-	Username        string     `json:"username" settable:"false" sql:"unique_index;not null" valid:"length(3|50),matches(^[a-zA-Z0-9][a-zA-Z0-9-_]+$)"`
+	Username        string     `json:"username" settable:"false" sql:"unique_index;not null" valid:"length(3|50),matches(^[a-zA-Z0-9][a-zA-Z0-9-_]+$),required"`
 	Email           string     `json:"email" sql:"not null" valid:"email"`
 	Password        string     `json:"password,omitempty" sql:"-" valid:"length(5|64)"`
 	HashedPassword  []byte     `json:"-" sql:"hashed_password;not null" gorm:"size:32"`

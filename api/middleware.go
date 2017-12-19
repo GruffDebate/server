@@ -102,7 +102,7 @@ func SessionUser(next echo.HandlerFunc) echo.HandlerFunc {
 					user.ID = 0
 				}
 			} else {
-				user.ID = 0
+				return echo.NewHTTPError(http.StatusUnauthorized)
 			}
 		} else {
 			user.ID = 0
@@ -221,10 +221,3 @@ func ServerContext(c echo.Context) *gruff.ServerContext {
 		Payload:     make(map[string]interface{}),
 	}
 }
-
-// func (ctx *Context) ServerContext() gruff.ServerContext {
-// 	return gruff.ServerContext{
-// 		Database: ctx.Database,
-// 		Test:     false,
-// 	}
-// }

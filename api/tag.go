@@ -29,6 +29,7 @@ func ListClaimsByTag(c echo.Context) error {
 	claims := []gruff.Claim{}
 
 	db = BasicJoins(ctx, c, db)
+	db = BasicFetch(ctx, c, db, ctx.UserContext.ID)
 	err = db.Model(&tag).Association("Claims").Find(&claims).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))

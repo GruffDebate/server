@@ -19,6 +19,7 @@ func List(c echo.Context) error {
 	db := ctx.Database
 
 	db = BasicJoins(ctx, c, db)
+	db = BasicFetch(ctx, c, db, ctx.UserContext.ID)
 	db = BasicPaging(ctx, c, db)
 
 	items := reflect.New(reflect.SliceOf(ctx.Type)).Interface()
@@ -32,9 +33,9 @@ func List(c echo.Context) error {
 	if ctx.Payload["ct"] != nil {
 		ctx.Payload["results"] = items
 		return c.JSON(http.StatusOK, ctx.Payload)
-	} else {
-		return c.JSON(http.StatusOK, items)
 	}
+
+	return c.JSON(http.StatusOK, items)
 }
 
 func Create(c echo.Context) error {
@@ -264,22 +265,19 @@ func BasicJoins(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB) *gorm.DB 
 	return db
 }
 
-func BasicFetch(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, uid int) *gorm.DB {
-	if uid > 0 {
-		id := uint(uid)
-		path := c.Path()
-		db = fetchFor(db, path, id)
-		return db
-	}
+func BasicFetch(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, uid uint64) *gorm.DB {
+	path := c.Path()
+	db = fetchFor(db, path, uid)
 	return db
 }
 
-func fetchFor(db *gorm.DB, path string, userId uint) *gorm.DB {
+func fetchFor(db *gorm.DB, path string, userId uint64) *gorm.DB {
 	parts := strings.Split(path, "/")
 	for i := len(parts) - 1; i >= 0; i-- {
 		part := parts[i]
 		switch part {
-		case "users":
+		case "claims":
+			db = db.Preload("CreatedBy")
 		}
 	}
 	return db
