@@ -35,8 +35,8 @@ type Claim struct {
 	Image       string     `json:"img,omitempty"`
 	Truth       float64    `json:"truth"`
 	TruthRU     float64    `json:"truthRU"` // Average score rolled up from argument totals
-	ProTruth    []Argument `json:"protruth,omitempty"`
-	ConTruth    []Argument `json:"contruth,omitempty"`
+	Pro         []Argument `json:"pro,omitempty"`
+	Con         []Argument `json:"con,omitempty"`
 	Links       []Link     `json:"links,omitempty"`
 	Contexts    []Context  `json:"contexts,omitempty"  gorm:"many2many:claim_contexts;"`
 	ContextIDs  []uint64   `json:"contextIds,omitempty" gorm:"-"`
@@ -114,14 +114,14 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 }
 
 func (c Claim) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argument) {
-	proArgs = c.ProTruth
-	conArgs = c.ConTruth
+	proArgs = c.Pro
+	conArgs = c.Con
 
 	if len(proArgs) == 0 {
 		ctx.Database.
 			Preload("Claim").
 			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_TYPE_PRO_TRUTH).
+			Where("type = ?", ARGUMENT_FOR).
 			Where("target_claim_id = ?", c.ID).
 			Find(&proArgs)
 	}
@@ -130,7 +130,7 @@ func (c Claim) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argu
 		ctx.Database.
 			Preload("Claim").
 			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_TYPE_CON_TRUTH).
+			Where("type = ?", ARGUMENT_AGAINST).
 			Where("target_claim_id = ?", c.ID).
 			Find(&conArgs)
 	}

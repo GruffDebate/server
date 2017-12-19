@@ -117,7 +117,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.0, c1.TruthRU)
 
-	a1 := Argument{Title: "A1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 0.7}
+	a1 := Argument{Title: "A1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_FOR, StrengthRU: 0.7}
 	TESTDB.Create(&a1)
 
 	(&c1).UpdateTruthRU(&CTX)
@@ -125,7 +125,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.85, c1.TruthRU)
 
-	a2 := Argument{Title: "Heinz 57", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.7}
+	a2 := Argument{Title: "Heinz 57", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_AGAINST, StrengthRU: 0.7}
 	TESTDB.Create(&a2)
 
 	(&c1).UpdateTruthRU(&CTX)
@@ -133,17 +133,17 @@ func TestUpdateTruthRU(t *testing.T) {
 	TESTDB.First(&c1)
 	assert.Equal(t, 0.675, c1.TruthRU)
 
-	a3 := Argument{Title: "Worcestershire", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.8}
+	a3 := Argument{Title: "Worcestershire", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_AGAINST, StrengthRU: 0.8}
 	TESTDB.Create(&a3)
 
 	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.415, c1.TruthRU)
 
-	a4 := Argument{Title: "Miracle Whip", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.2}
-	a5 := Argument{Title: "Grey Poupon", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 0.3}
-	a6 := Argument{Title: "Dijonnaise", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_CON_TRUTH, StrengthRU: 0.7}
-	a7 := Argument{Title: "1000 Island", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 0.6}
-	a8 := Argument{Title: "Tabasco", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 0.5}
+	a4 := Argument{Title: "Miracle Whip", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_AGAINST, StrengthRU: 0.2}
+	a5 := Argument{Title: "Grey Poupon", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_FOR, StrengthRU: 0.3}
+	a6 := Argument{Title: "Dijonnaise", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Type: ARGUMENT_AGAINST, StrengthRU: 0.7}
+	a7 := Argument{Title: "1000 Island", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_FOR, StrengthRU: 0.6}
+	a8 := Argument{Title: "Tabasco", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Type: ARGUMENT_FOR, StrengthRU: 0.5}
 	TESTDB.Create(&a4)
 	TESTDB.Create(&a5)
 	TESTDB.Create(&a6)
@@ -153,7 +153,7 @@ func TestUpdateTruthRU(t *testing.T) {
 	(&c1).UpdateTruthRU(&CTX)
 	assert.Equal(t, 0.5083, c1.TruthRU)
 
-	a9 := Argument{Title: "Tabasco", TargetClaimID: NUUID(c2.ID), ClaimID: c3.ID, Type: ARGUMENT_TYPE_PRO_TRUTH, StrengthRU: 1.0}
+	a9 := Argument{Title: "Tabasco", TargetClaimID: NUUID(c2.ID), ClaimID: c3.ID, Type: ARGUMENT_FOR, StrengthRU: 1.0}
 	TESTDB.Create(&a9)
 
 	(&c1).UpdateTruthRU(&CTX)
@@ -175,14 +175,14 @@ func TestUpdateAncestorRUs(t *testing.T) {
 	TESTDB.Create(&c4)
 	TESTDB.Create(&c5)
 
-	a1 := Argument{Title: "Argument 1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Strength: 0.1, StrengthRU: 0.15, Type: ARGUMENT_TYPE_PRO_TRUTH}
-	a2 := Argument{Title: "Argument 2", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Strength: 0.2, Type: ARGUMENT_TYPE_CON_TRUTH}
-	a3 := Argument{Title: "Argument 3", TargetClaimID: NUUID(c1.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_TYPE_PRO_TRUTH}
+	a1 := Argument{Title: "Argument 1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Strength: 0.1, StrengthRU: 0.15, Type: ARGUMENT_FOR}
+	a2 := Argument{Title: "Argument 2", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Strength: 0.2, Type: ARGUMENT_AGAINST}
+	a3 := Argument{Title: "Argument 3", TargetClaimID: NUUID(c1.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_FOR}
 	TESTDB.Create(&a1)
 	TESTDB.Create(&a2)
 	TESTDB.Create(&a3)
 
-	a4 := Argument{Title: "Argument 4", TargetArgumentID: NUUID(a1.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.65, Type: ARGUMENT_TYPE_PRO_STRENGTH}
+	a4 := Argument{Title: "Argument 4", TargetArgumentID: NUUID(a1.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.65, Type: ARGUMENT_FOR}
 	TESTDB.Create(&a4)
 
 	a1.UpdateAncestorRUs(&CTX)

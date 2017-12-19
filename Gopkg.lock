@@ -8,6 +8,12 @@
   version = "v6"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/badoux/goscraper"
+  packages = ["."]
+  revision = "0213ced7087832e81e8892e8d044150cfc153856"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
@@ -100,13 +106,25 @@
   revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["html","html/atom","html/charset"]
+  revision = "d866cfc389cec985d6fda2859936a575a55a3ab6"
+
+[[projects]]
   name = "golang.org/x/sys"
   packages = ["unix"]
   revision = "fb4cac33e3196ff7f507ab9b2d2a44b0142f5b5a"
 
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/text"
+  packages = ["encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/gen","internal/tag","internal/utf8internal","language","runes","transform","unicode/cldr"]
+  revision = "d5a9226ed7dd70cade6ccae9d37517fe14dd9fee"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ffa28f97cb3bf94b4eac413a44f54b82be9ef92852b16b6d69098b84207245d7"
+  inputs-digest = "aac74e961a6d6f97debb054d48f90eca05d232d753bfc62c03d745325123468c"
   solver-name = "gps-cdcl"
   solver-version = 1
