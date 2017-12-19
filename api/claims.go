@@ -34,26 +34,26 @@ func GetClaim(c echo.Context) error {
 	proArgs := []gruff.Argument{}
 	db = ctx.Database
 	db = db.Preload("Claim.Contexts")
-	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_PRO_TRUTH)
+	db = db.Where("type = ?", gruff.ARGUMENT_FOR)
 	db = db.Where("target_claim_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)
 	err = db.Find(&proArgs).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
-	claim.ProTruth = proArgs
+	claim.Pro = proArgs
 
 	conArgs := []gruff.Argument{}
 	db = ctx.Database
 	db = db.Preload("Claim.Contexts")
-	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_CON_TRUTH)
+	db = db.Where("type = ?", gruff.ARGUMENT_AGAINST)
 	db = db.Where("target_claim_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)
 	err = db.Find(&conArgs).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
-	claim.ConTruth = conArgs
+	claim.Con = conArgs
 
 	return c.JSON(http.StatusOK, claim)
 }

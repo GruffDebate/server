@@ -37,22 +37,16 @@ func TestArgumentValidateForCreate(t *testing.T) {
 	a.Type = 7
 	assert.Equal(t, "Type: invalid;", a.ValidateForCreate().Error())
 
-	a.Type = ARGUMENT_TYPE_PRO_TRUTH
+	a.Type = ARGUMENT_FOR
 	assert.Nil(t, a.ValidateForCreate())
 
-	a.Type = ARGUMENT_TYPE_CON_TRUTH
+	a.Type = ARGUMENT_AGAINST
 	assert.Nil(t, a.ValidateForCreate())
-
-	a.Type = ARGUMENT_TYPE_PRO_STRENGTH
-	assert.Equal(t, "An argument for or against argument strength must refer to a target argument", a.ValidateForCreate().Error())
-
-	a.TargetArgumentID = &NullableUUID{UUID: uuid.New()}
-	assert.Equal(t, "An Argument can have only one target Claim or target Argument ID", a.ValidateForCreate().Error())
 
 	a.TargetClaimID = nil
-	assert.Nil(t, a.ValidateForCreate())
+	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForCreate().Error())
 
-	a.Type = ARGUMENT_TYPE_CON_STRENGTH
+	a.TargetClaimID = &NullableUUID{UUID: uuid.New()}
 	assert.Nil(t, a.ValidateForCreate())
 }
 
@@ -85,22 +79,16 @@ func TestArgumentValidateForUpdate(t *testing.T) {
 	a.Type = 7
 	assert.Equal(t, "Type: invalid;", a.ValidateForUpdate().Error())
 
-	a.Type = ARGUMENT_TYPE_PRO_TRUTH
+	a.Type = ARGUMENT_FOR
 	assert.Nil(t, a.ValidateForUpdate())
 
-	a.Type = ARGUMENT_TYPE_CON_TRUTH
+	a.Type = ARGUMENT_AGAINST
 	assert.Nil(t, a.ValidateForUpdate())
-
-	a.Type = ARGUMENT_TYPE_PRO_STRENGTH
-	assert.Equal(t, "An argument for or against argument strength must refer to a target argument", a.ValidateForUpdate().Error())
-
-	a.TargetArgumentID = &NullableUUID{UUID: uuid.New()}
-	assert.Equal(t, "An Argument can have only one target Claim or target Argument ID", a.ValidateForUpdate().Error())
 
 	a.TargetClaimID = nil
-	assert.Nil(t, a.ValidateForUpdate())
+	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForUpdate().Error())
 
-	a.Type = ARGUMENT_TYPE_CON_STRENGTH
+	a.TargetArgumentID = &NullableUUID{UUID: uuid.New()}
 	assert.Nil(t, a.ValidateForUpdate())
 }
 
@@ -234,10 +222,10 @@ func TestArgumentMoveTo(t *testing.T) {
 	TESTDB.Create(&c4)
 	TESTDB.Create(&c5)
 
-	a1 := Argument{Title: "Argument 1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Strength: 0.1, StrengthRU: 0.2, Type: ARGUMENT_TYPE_PRO_TRUTH}
-	a2 := Argument{Title: "Argument 2", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Strength: 0.2, StrengthRU: 0.3, Type: ARGUMENT_TYPE_CON_TRUTH}
-	a3 := Argument{Title: "Argument 3", TargetClaimID: NUUID(c1.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_TYPE_PRO_TRUTH}
-	a4 := Argument{Title: "Argument 4", TargetClaimID: NUUID(c1.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.6, Type: ARGUMENT_TYPE_CON_TRUTH}
+	a1 := Argument{Title: "Argument 1", TargetClaimID: NUUID(c1.ID), ClaimID: c2.ID, Strength: 0.1, StrengthRU: 0.2, Type: ARGUMENT_FOR}
+	a2 := Argument{Title: "Argument 2", TargetClaimID: NUUID(c1.ID), ClaimID: c3.ID, Strength: 0.2, StrengthRU: 0.3, Type: ARGUMENT_AGAINST}
+	a3 := Argument{Title: "Argument 3", TargetClaimID: NUUID(c1.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_FOR}
+	a4 := Argument{Title: "Argument 4", TargetClaimID: NUUID(c1.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.6, Type: ARGUMENT_AGAINST}
 	TESTDB.Create(&a1)
 	TESTDB.Create(&a2)
 	TESTDB.Create(&a3)
@@ -282,7 +270,7 @@ func TestArgumentMoveTo(t *testing.T) {
 	TESTDB.Create(&ao42)
 	TESTDB.Create(&ao44)
 
-	err := a2.MoveTo(&CTX, a1.ID, ARGUMENT_TYPE_PRO_STRENGTH)
+	err := a2.MoveTo(&CTX, a1.ID, ARGUMENT_FOR, OBJECT_TYPE_ARGUMENT)
 
 	assert.Nil(t, err)
 	// Test removal of opinions
@@ -295,7 +283,7 @@ func TestArgumentMoveTo(t *testing.T) {
 	TESTDB.Where("id = ?", a2.ID).First(&a2)
 	assert.Nil(t, a2.TargetClaimID)
 	assert.Equal(t, a1.ID, a2.TargetArgumentID.UUID)
-	assert.Equal(t, ARGUMENT_TYPE_PRO_STRENGTH, a2.Type)
+	assert.Equal(t, ARGUMENT_FOR, a2.Type)
 	// Test notification of voters
 	ns := []Notification{}
 	TESTDB.Scopes(FindArgumentMovedNotifications).Where("item_id = ?", a2.ID).Order("user_id ASC").Find(&ns)
@@ -337,9 +325,9 @@ func TestArgumentMoveTo(t *testing.T) {
 	assert.Equal(t, 0.6, a4.StrengthRU)
 
 	// Set up some sub-arguments
-	a5 := Argument{Title: "Argument 5", TargetArgumentID: NUUID(a3.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_TYPE_PRO_TRUTH}
+	a5 := Argument{Title: "Argument 5", TargetArgumentID: NUUID(a3.ID), ClaimID: c4.ID, Strength: 0.6, StrengthRU: 0.7, Type: ARGUMENT_FOR}
 
-	a6 := Argument{Title: "Argument 6", TargetArgumentID: NUUID(a3.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.6, Type: ARGUMENT_TYPE_CON_TRUTH}
+	a6 := Argument{Title: "Argument 6", TargetArgumentID: NUUID(a3.ID), ClaimID: c5.ID, Strength: 0.7, StrengthRU: 0.6, Type: ARGUMENT_AGAINST}
 	TESTDB.Create(&a5)
 	TESTDB.Create(&a6)
 
@@ -350,7 +338,7 @@ func TestArgumentMoveTo(t *testing.T) {
 	TESTDB.Create(&ao53)
 	TESTDB.Create(&ao61)
 
-	err = a3.MoveTo(&CTX, c2.ID, ARGUMENT_TYPE_CON_TRUTH)
+	err = a3.MoveTo(&CTX, c2.ID, ARGUMENT_AGAINST, OBJECT_TYPE_CLAIM)
 
 	assert.Nil(t, err)
 	// Test removal of opinions
@@ -363,7 +351,7 @@ func TestArgumentMoveTo(t *testing.T) {
 	TESTDB.Where("id = ?", a3.ID).First(&a3)
 	assert.Nil(t, a3.TargetArgumentID)
 	assert.Equal(t, c2.ID, a3.TargetClaimID.UUID)
-	assert.Equal(t, ARGUMENT_TYPE_CON_TRUTH, a3.Type)
+	assert.Equal(t, ARGUMENT_AGAINST, a3.Type)
 	ns = []Notification{}
 	// Test notification of voters
 	TESTDB.Scopes(FindArgumentMovedNotifications).Where("item_id = ?", a3.ID).Order("user_id ASC").Find(&ns)

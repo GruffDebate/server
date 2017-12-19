@@ -3,7 +3,7 @@
   "profile": "gruff",
   "regions": ["us-west-2"],
   "lambda": {
-    "memory": 512
+    "memory": 1024
   },
   "environment": {
     "GRUFF_ENV": "DEVELOPMENT",

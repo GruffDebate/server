@@ -34,29 +34,29 @@ func GetArgument(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	proStrength := []gruff.Argument{}
+	pro := []gruff.Argument{}
 	db = ctx.Database
 	db = db.Preload("Claim")
-	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_PRO_STRENGTH)
+	db = db.Where("type = ?", gruff.ARGUMENT_FOR)
 	db = db.Where("target_argument_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)
-	err = db.Find(&proStrength).Error
+	err = db.Find(&pro).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
-	argument.ProStrength = proStrength
+	argument.Pro = pro
 
-	conStrength := []gruff.Argument{}
+	con := []gruff.Argument{}
 	db = ctx.Database
 	db = db.Preload("Claim")
-	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_CON_STRENGTH)
+	db = db.Where("type = ?", gruff.ARGUMENT_AGAINST)
 	db = db.Where("target_argument_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)
-	err = db.Find(&conStrength).Error
+	err = db.Find(&con).Error
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
-	argument.ConStrength = conStrength
+	argument.Con = con
 
 	return c.JSON(http.StatusOK, argument)
 }
@@ -136,12 +136,17 @@ func MoveArgument(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewNotFoundError(err.Error()))
 	}
 
+	objType, err := strconv.Atoi(c.Param("targetType"))
+	if err != nil {
+		return AddGruffError(ctx, c, gruff.NewNotFoundError(err.Error()))
+	}
+
 	arg := gruff.Argument{}
 	if err := db.Where("id = ?", id).First(&arg).Error; err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	if err := (&arg).MoveTo(ServerContext(c), newID, t); err != nil {
+	if err := (&arg).MoveTo(ServerContext(c), newID, t, objType); err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 

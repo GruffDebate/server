@@ -7,10 +7,8 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-const ARGUMENT_TYPE_PRO_TRUTH int = 1
-const ARGUMENT_TYPE_CON_TRUTH int = 2
-const ARGUMENT_TYPE_PRO_STRENGTH int = 3
-const ARGUMENT_TYPE_CON_STRENGTH int = 4
+const ARGUMENT_FOR int = 1
+const ARGUMENT_AGAINST int = 2
 
 /*
   An Argument connects a Claim to another Claim or Argument
@@ -100,8 +98,8 @@ type Argument struct {
 	Type             int           `json:"type" sql:"not null"`
 	Strength         float64       `json:"strength"`
 	StrengthRU       float64       `json:"strengthRU"`
-	ProStrength      []Argument    `json:"prostr,omitempty"`
-	ConStrength      []Argument    `json:"constr,omitempty"`
+	Pro              []Argument    `json:"pro,omitempty"`
+	Con              []Argument    `json:"con,omitempty"`
 }
 
 func (a Argument) ValidateForCreate() GruffError {
@@ -152,17 +150,7 @@ func (a Argument) ValidateIDs() GruffError {
 }
 
 func (a Argument) ValidateType() GruffError {
-	switch a.Type {
-	case ARGUMENT_TYPE_PRO_TRUTH, ARGUMENT_TYPE_CON_TRUTH:
-		if a.TargetClaimID == nil || a.TargetClaimID.UUID == uuid.Nil {
-			return NewBusinessError("A pro or con truth argument must refer to a target claim")
-		}
-	case ARGUMENT_TYPE_PRO_STRENGTH,
-		ARGUMENT_TYPE_CON_STRENGTH:
-		if a.TargetArgumentID == nil || a.TargetArgumentID.UUID == uuid.Nil {
-			return NewBusinessError("An argument for or against argument strength must refer to a target argument")
-		}
-	default:
+	if a.Type != ARGUMENT_FOR && a.Type != ARGUMENT_AGAINST {
 		return NewBusinessError("Type: invalid;")
 	}
 	return nil
@@ -237,7 +225,7 @@ func (a Argument) UpdateAncestorRUs(ctx *ServerContext) {
 	}
 }
 
-func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t int) GruffError {
+func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t, objType int) GruffError {
 	db := ctx.Database
 
 	oldArg := Argument{TargetClaimID: a.TargetClaimID, TargetArgumentID: a.TargetArgumentID, Type: a.Type}
@@ -248,8 +236,8 @@ func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t int) GruffError
 		oldTargetType = OBJECT_TYPE_CLAIM
 	}
 
-	switch t {
-	case ARGUMENT_TYPE_PRO_TRUTH, ARGUMENT_TYPE_CON_TRUTH:
+	switch objType {
+	case OBJECT_TYPE_CLAIM:
 		newClaim := Claim{}
 		if err := db.Where("id = ?", newId).First(&newClaim).Error; err != nil {
 			return NewNotFoundError(err.Error())
@@ -260,7 +248,7 @@ func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t int) GruffError
 		a.TargetClaim = &newClaim
 		a.TargetArgumentID = nil
 
-	case ARGUMENT_TYPE_PRO_STRENGTH, ARGUMENT_TYPE_CON_STRENGTH:
+	case OBJECT_TYPE_ARGUMENT:
 		newArg := Argument{}
 		if err := db.Where("id = ?", newId).First(&newArg).Error; err != nil {
 			return NewNotFoundError(err.Error())
@@ -275,12 +263,17 @@ func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t int) GruffError
 		return NewNotFoundError(fmt.Sprintf("Type unknown: %d", t))
 	}
 	a.Type = t
+	if err := a.ValidateType(); err != nil {
+		return err
+	}
 
 	if err := db.Set("gorm:save_associations", false).Save(a).Error; err != nil {
 		return NewServerError(err.Error())
 	}
 
 	// TODO: Goroutine
+
+	// TODO: More intelligent way to update scores?
 
 	// Notify argument voters of move so they can vote again
 	ops := []ArgumentOpinion{}
@@ -358,14 +351,14 @@ func (a Argument) ScoreRU(ctx *ServerContext) float64 {
 }
 
 func (a Argument) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argument) {
-	proArgs = a.ProStrength
-	conArgs = a.ConStrength
+	proArgs = a.Pro
+	conArgs = a.Con
 
 	if len(proArgs) == 0 {
 		ctx.Database.
 			Preload("Claim").
 			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_TYPE_PRO_STRENGTH).
+			Where("type = ?", ARGUMENT_FOR).
 			Where("target_argument_id = ?", a.ID).
 			Find(&proArgs)
 	}
@@ -374,7 +367,7 @@ func (a Argument) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []A
 		ctx.Database.
 			Preload("Claim").
 			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_TYPE_CON_STRENGTH).
+			Where("type = ?", ARGUMENT_AGAINST).
 			Where("target_argument_id = ?", a.ID).
 			Find(&conArgs)
 	}

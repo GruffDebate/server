@@ -189,18 +189,28 @@ func TestGetClaim(t *testing.T) {
 	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d8.ID)
 	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d9.ID)
 
+	TESTDB.Preload("Contexts").First(&d1)
+	TESTDB.Preload("Contexts").First(&d2)
+	TESTDB.Preload("Contexts").First(&d3)
+	TESTDB.Preload("Contexts").First(&d4)
+	TESTDB.Preload("Contexts").First(&d5)
+	TESTDB.Preload("Contexts").First(&d6)
+	TESTDB.Preload("Contexts").First(&d7)
+	TESTDB.Preload("Contexts").First(&d8)
+	TESTDB.Preload("Contexts").First(&d9)
+
 	d1IDNull := gruff.NullableUUID{d1.ID}
 	d2IDNull := gruff.NullableUUID{d2.ID}
 	d3IDNull := gruff.NullableUUID{d3.ID}
 	d4IDNull := gruff.NullableUUID{d4.ID}
-	a3 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_TYPE_PRO_TRUTH, Title: "Argument 3", Strength: 0.0293}
-	a4 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d4.ID, Type: gruff.ARGUMENT_TYPE_CON_TRUTH, Title: "Argument 4", Strength: 0.9823}
-	a5 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d5.ID, Type: gruff.ARGUMENT_TYPE_PRO_TRUTH, Title: "Argument 5", Strength: 0.100}
-	a6 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d6.ID, Type: gruff.ARGUMENT_TYPE_PRO_TRUTH, Title: "Argument 6", Strength: 0.2398}
-	a7 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d7.ID, Type: gruff.ARGUMENT_TYPE_CON_TRUTH, Title: "Argument 7", Strength: 0.120}
-	a8 := gruff.Argument{TargetArgumentID: &d3IDNull, ClaimID: d8.ID, Type: gruff.ARGUMENT_TYPE_PRO_STRENGTH, Title: "Argument 8", Strength: 0.9823}
-	a9 := gruff.Argument{TargetArgumentID: &d3IDNull, ClaimID: d9.ID, Type: gruff.ARGUMENT_TYPE_PRO_STRENGTH, Title: "Argument 9", Strength: 0.83}
-	a10 := gruff.Argument{TargetClaimID: &d4IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_TYPE_CON_STRENGTH, Title: "Argument 10", Strength: 0.83}
+	a3 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 3", Strength: 0.0293}
+	a4 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d4.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 4", Strength: 0.9823}
+	a5 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d5.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 5", Strength: 0.100}
+	a6 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d6.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 6", Strength: 0.2398}
+	a7 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d7.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 7", Strength: 0.120}
+	a8 := gruff.Argument{TargetArgumentID: &d3IDNull, ClaimID: d8.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 8", Strength: 0.9823}
+	a9 := gruff.Argument{TargetArgumentID: &d3IDNull, ClaimID: d9.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 9", Strength: 0.83}
+	a10 := gruff.Argument{TargetClaimID: &d4IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 10", Strength: 0.83}
 	TESTDB.Create(&a3)
 	TESTDB.Create(&a4)
 	TESTDB.Create(&a5)
@@ -226,8 +236,8 @@ func TestGetClaim(t *testing.T) {
 	db = db.Preload("Tags")
 	db.Where("id = ?", d1.ID).First(&d1)
 
-	d1.ProTruth = []gruff.Argument{a5, a3}
-	d1.ConTruth = []gruff.Argument{a4}
+	d1.Pro = []gruff.Argument{a5, a3}
+	d1.Con = []gruff.Argument{a4}
 
 	expectedResults, _ := json.Marshal(d1)
 
