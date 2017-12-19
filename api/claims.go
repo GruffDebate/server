@@ -33,7 +33,7 @@ func GetClaim(c echo.Context) error {
 
 	proArgs := []gruff.Argument{}
 	db = ctx.Database
-	db = db.Preload("Claim")
+	db = db.Preload("Claim.Contexts")
 	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_PRO_TRUTH)
 	db = db.Where("target_claim_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)
@@ -45,7 +45,7 @@ func GetClaim(c echo.Context) error {
 
 	conArgs := []gruff.Argument{}
 	db = ctx.Database
-	db = db.Preload("Claim")
+	db = db.Preload("Claim.Contexts")
 	db = db.Where("type = ?", gruff.ARGUMENT_TYPE_CON_TRUTH)
 	db = db.Where("target_claim_id = ?", id)
 	db = db.Scopes(gruff.OrderByBestArgument)

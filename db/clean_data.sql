@@ -1,8 +1,10 @@
 DELETE FROM links;
 DELETE FROM arguments;
+DELETE FROM claim_contexts;
 DELETE FROM contexts;
 DELETE FROM notifications;
+DELETE FROM claim_tags;
 DELETE FROM tags;
-DELETE FROM users;
 DELETE FROM "values";
 DELETE FROM claims;
+DELETE FROM users;

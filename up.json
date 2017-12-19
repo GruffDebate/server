@@ -3,7 +3,7 @@
   "profile": "gruff",
   "regions": ["us-west-2"],
   "lambda": {
-    "memory": 256
+    "memory": 512
   },
   "environment": {
     "GRUFF_ENV": "DEVELOPMENT",
@@ -13,5 +13,14 @@
   "hooks": {
     "build": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server `ls *.go | grep -v _test.go`",
     "clean": "rm server"
+  },
+  "dns": {
+    "gruff.org": [
+      {
+        "name": "endpoint.gruff.org",
+        "type": "A",
+        "value": ["54.187.185.18"]
+      }
+    ]
   }
 }
