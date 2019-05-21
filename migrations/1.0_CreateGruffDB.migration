@@ -1,0 +1,6 @@
+type: database
+action: create
+name: gruff
+allowed:
+  - username: ${username}
+    password: ${password}

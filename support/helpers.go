@@ -22,6 +22,10 @@ func IntPtr(i int) *int {
 	return &i
 }
 
+func TimePtr(t time.Time) *time.Time {
+	return &t
+}
+
 func AUintToAInt(au []uint) []int {
 	ai := make([]int, len(au))
 	for i := 0; i < len(au); i++ {

@@ -87,7 +87,7 @@ func CreateArgument(c echo.Context) error {
 		if arg.Claim.Description != "" {
 			claim.Description = arg.Claim.Description
 		}
-		valerr := BasicValidationForCreate(ctx, c, claim)
+		valerr := DefaultValidationForCreate(ctx, c, claim)
 		if valerr != nil {
 			return AddGruffError(ctx, c, gruff.NewServerError(valerr.Error()))
 		}
@@ -105,7 +105,7 @@ func CreateArgument(c echo.Context) error {
 		arg.Claim = nil
 	}
 
-	valerr := BasicValidationForCreate(ctx, c, arg)
+	valerr := DefaultValidationForCreate(ctx, c, arg)
 	if valerr != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(valerr.Error()))
 	}

@@ -14,11 +14,10 @@ func ListContext(c echo.Context) error {
 
 	contexts := []gruff.Context{}
 
-	db = BasicJoins(ctx, c, db)
-	db = BasicPaging(ctx, c, db)
+	db = DefaultJoins(ctx, c, db)
+	db = DefaultPaging(ctx, c, db)
 
-	err := db.Find(&contexts).Error
-	if err != nil {
+	if err := db.Find(&contexts).Error; err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 

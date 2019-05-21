@@ -2,7 +2,6 @@ package gruff
 
 import (
 	"github.com/GruffDebate/server/support"
-	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 )
 
@@ -15,16 +14,16 @@ const NOTIFICATION_TYPE_NEW_ARGUMENT int = 3
 
 type Notification struct {
 	Model
-	UserID   uint64        `json:"userId" sql:"not null"`
-	Type     int           `json:"type" sql:"not null"`
-	ItemID   *NullableUUID `json:"itemId,omitempty" sql:"type:uuid"`
-	ItemType *int          `json:"itemType"`
-	Item     interface{}   `json:"item,omitempty" gorm:"-"`
-	OldID    *NullableUUID `json:"oldId,omitempty" sql:"type:uuid"`
-	OldType  *int          `json:"oldType"`
-	NewID    *NullableUUID `json:"newId,omitempty" sql:"type:uuid"`
-	NewType  *int          `json:"newType"`
-	Viewed   bool          `json:"viewed" sql:"not null"`
+	UserID   uint64      `json:"userId" sql:"not null"`
+	Type     int         `json:"type" sql:"not null"`
+	ItemID   *string     `json:"itemId,omitempty" sql:"type:uuid"`
+	ItemType *int        `json:"itemType"`
+	Item     interface{} `json:"item,omitempty" gorm:"-"`
+	OldID    *string     `json:"oldId,omitempty" sql:"type:uuid"`
+	OldType  *int        `json:"oldType"`
+	NewID    *string     `json:"newId,omitempty" sql:"type:uuid"`
+	NewType  *int        `json:"newType"`
+	Viewed   bool        `json:"viewed" sql:"not null"`
 }
 
 func (n Notification) ValidateForCreate() GruffError {
@@ -39,33 +38,41 @@ func (n Notification) ValidateField(f string) GruffError {
 	return ValidateStructField(n, f)
 }
 
-func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId uuid.UUID, oldTargetId uuid.UUID, oldTargetType int) GruffError {
-	n := Notification{
-		UserID:   userId,
-		Type:     NOTIFICATION_TYPE_MOVED,
-		ItemID:   NUUID(argId),
-		ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
-		OldID:    NUUID(oldTargetId),
-		OldType:  support.IntPtr(oldTargetType),
-	}
-	if err := ctx.Database.Create(&n).Error; err != nil {
-		return NewServerError(err.Error())
-	}
+func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId string, oldTargetId string, oldTargetType int) GruffError {
+	/*
+		n := Notification{
+			UserID:   userId,
+			Type:     NOTIFICATION_TYPE_MOVED,
+			ItemID:   &argId,
+			ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
+			OldID:    &oldTargetId,
+			OldType:  support.IntPtr(oldTargetType),
+		}
+	*/
+	/*
+		if err := ctx.Database.Create(&n).Error; err != nil {
+			return NewServerError(err.Error())
+		}
+	*/
 	return nil
 }
 
-func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId uuid.UUID, oldTargetId uuid.UUID, oldTargetType int) GruffError {
-	n := Notification{
-		UserID:   userId,
-		Type:     NOTIFICATION_TYPE_PARENT_MOVED,
-		ItemID:   NUUID(parentArgId),
-		ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
-		OldID:    NUUID(oldTargetId),
-		OldType:  support.IntPtr(oldTargetType),
-	}
-	if err := ctx.Database.Create(&n).Error; err != nil {
-		return NewServerError(err.Error())
-	}
+func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId string, oldTargetId string, oldTargetType int) GruffError {
+	/*
+		n := Notification{
+			UserID:   userId,
+			Type:     NOTIFICATION_TYPE_PARENT_MOVED,
+			ItemID:   &parentArgId,
+			ItemType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
+			OldID:    &oldTargetId,
+			OldType:  support.IntPtr(oldTargetType),
+		}
+	*/
+	/*
+		if err := ctx.Database.Create(&n).Error; err != nil {
+			return NewServerError(err.Error())
+		}
+	*/
 	return nil
 }
 
@@ -73,19 +80,21 @@ func NotifyNewArgument(ctx ServerContext, userId uint64, item interface{}, newAr
 	n := Notification{
 		UserID:  userId,
 		Type:    NOTIFICATION_TYPE_NEW_ARGUMENT,
-		NewID:   NUUID(newArg.ID),
+		NewID:   &newArg.ID,
 		NewType: support.IntPtr(OBJECT_TYPE_ARGUMENT),
 	}
 	if claim, ok := item.(Claim); ok {
-		n.ItemID = NUUID(claim.ID)
+		n.ItemID = &claim.ID
 		n.ItemType = support.IntPtr(OBJECT_TYPE_CLAIM)
 	} else if arg, ok := item.(Argument); ok {
-		n.ItemID = NUUID(arg.ID)
+		n.ItemID = &arg.ID
 		n.ItemType = support.IntPtr(OBJECT_TYPE_ARGUMENT)
 	}
-	if err := ctx.Database.Create(&n).Error; err != nil {
-		return NewServerError(err.Error())
-	}
+	/*
+		if err := ctx.Database.Create(&n).Error; err != nil {
+			return NewServerError(err.Error())
+		}
+	*/
 	return nil
 }
 

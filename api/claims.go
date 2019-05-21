@@ -58,28 +58,33 @@ func GetClaim(c echo.Context) error {
 	return c.JSON(http.StatusOK, claim)
 }
 
-func ListTopClaims(c echo.Context) error {
-	ctx := ServerContext(c)
-	db := ctx.Database
+func ListClaims(which string) func(c echo.Context) error {
+	return func(c echo.Context) error {
+		ctx := ServerContext(c)
+		db := ctx.Database
 
-	claims := []gruff.Claim{}
+		claims := []gruff.Claim{}
 
-	db = BasicJoins(ctx, c, db)
-	db = BasicFetch(ctx, c, db, ctx.UserContext.ID)
-	db = db.Where("0 = (SELECT COUNT(*) FROM arguments WHERE claim_id = claims.id)")
-	db = BasicPaging(ctx, c, db)
+		db = DefaultJoins(ctx, c, db)
+		db = DefaultFetch(ctx, c, db, ctx.UserContext.ID)
+		if which == "top" {
+			db = db.Where("0 = (SELECT COUNT(*) FROM arguments WHERE claim_id = claims.id)")
+		}
+		db = db.Order("claims.created_at DESC")
+		db = DefaultPaging(ctx, c, db)
 
-	err := db.Find(&claims).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		err := db.Find(&claims).Error
+		if err != nil {
+			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		}
+
+		if ctx.Payload["ct"] != nil {
+			ctx.Payload["results"] = claims
+			return c.JSON(http.StatusOK, ctx.Payload)
+		}
+
+		return c.JSON(http.StatusOK, claims)
 	}
-
-	if ctx.Payload["ct"] != nil {
-		ctx.Payload["results"] = claims
-		return c.JSON(http.StatusOK, ctx.Payload)
-	}
-
-	return c.JSON(http.StatusOK, claims)
 }
 
 func SetScore(c echo.Context) error {

@@ -82,8 +82,8 @@ func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
 	private.PUT("/claims/:parentId/contexts", ReplaceAssociation)
 	private.PUT("/claims/:parentId/tags", ReplaceAssociation)
 
-	public.GET("/claims", List)
-	public.GET("/claims/top", ListTopClaims)
+	public.GET("/claims", ListClaims("new"))
+	public.GET("/claims/top", ListClaims("top"))
 	public.GET("/claims/:id", GetClaim)
 	private.POST("/claims", Create)
 	private.PUT("/claims/:id", Update)

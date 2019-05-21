@@ -1,72 +1,83 @@
 package gruff
 
 import (
-	_ "errors"
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	arango "github.com/arangodb/go-driver"
+	"github.com/arangodb/go-driver/http"
 )
 
-func InitTestDB() *gorm.DB {
-	if os.Getenv("GRUFF_DB") == "" {
-		os.Setenv("GRUFF_DB", "dbname=gruff_test sslmode=disable")
+func InitTestDB() (arango.Client, arango.Database) {
+	if os.Getenv("ARANGO_ENDPOINT") == "" {
+		os.Setenv("ARANGO_ENDPOINT", "http://localhost:8529")
+	}
+	if os.Getenv("ARANGO_DB") == "" {
+		os.Setenv("ARANGO_DB", "gruff_test")
+	}
+	if os.Getenv("ARANGO_USER") == "" {
+		os.Setenv("ARANGO_USER", "root")
+	}
+	if os.Getenv("ARANGO_PASS") == "" {
+		os.Setenv("ARANGO_PASS", "")
 	}
 
-	var err error
-	var db *gorm.DB
-	if db, err = OpenTestConnection(); err != nil {
-		fmt.Println("No error should happen when connecting to test database, but got", err)
+	client, err := OpenTestConnection()
+	if err != nil {
+		fmt.Println("No error should happen when connecting to test database, but got:", err)
 	}
 
-	db.LogMode(false)
+	ctx := context.Background()
+	db, err := client.Database(ctx, os.Getenv("ARANGO_DB"))
+	if err != nil {
+		fmt.Println("Error opening the test database:", err)
+	}
 
-	runMigration(db)
+	cleanData(db)
 
-	return db
+	return client, db
 }
 
-func OpenTestConnection() (db *gorm.DB, err error) {
-	gruff_db := os.Getenv("GRUFF_DB")
-	if gruff_db == "" {
-		gruff_db = "dbname=gruff_test sslmode=disable"
+func OpenTestConnection() (arango.Client, error) {
+	conn, err := http.NewConnection(http.ConnectionConfig{
+		Endpoints: []string{os.Getenv("ARANGO_ENDPOINT")},
+	})
+	if err != nil {
+		return nil, err
 	}
-	db, err = gorm.Open("postgres", gruff_db)
-	return
+	conn, err = conn.SetAuthentication(arango.BasicAuthentication(os.Getenv("ARANGO_USER"), os.Getenv("ARANGO_PASS")))
+	if err != nil {
+		return nil, err
+	}
+	db, err := arango.NewClient(arango.ClientConfig{
+		Connection: conn,
+	})
+
+	return db, err
 }
 
-func runMigration(db *gorm.DB) {
-	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+func cleanData(db arango.Database) {
+	ctx := ArangoContext{DB: db}
 
-	values := []interface{}{
-		&User{},
-		&Claim{},
-		&ClaimOpinion{},
-		&Argument{},
-		&ArgumentOpinion{},
-		&Link{},
-		&Tag{},
-		&Context{},
-		&Value{},
-		&Notification{},
+	models := []ArangoObject{
+		Inference{},
+		BaseClaimEdge{},
+		PremiseEdge{},
+		Argument{},
+		Claim{},
 	}
 
-	for _, value := range values {
-		db.DropTable(value)
+	for _, m := range models {
+		col, err := ctx.CollectionFor(m)
+		if err != nil {
+			// bummer
+			fmt.Println("Error getting collection for model")
+		}
+		if err := col.Truncate(nil); err != nil {
+			// bummer
+			fmt.Println("Truncating collection")
+		}
 	}
-
-	if err := db.AutoMigrate(values...).Error; err != nil {
-		panic(fmt.Sprintf("No error should happen when create table, but got %+v", err))
-	}
-
-	// Association tables
-	db.Exec("DROP TABLE IF EXISTS claim_contexts;")
-	db.Exec("DROP TABLE IF EXISTS claim_values;")
-	db.Exec("DROP TABLE IF EXISTS claim_tags;")
-
-	db.Exec("CREATE TABLE claim_contexts (context_id integer NOT NULL, claim_id uuid NOT NULL);")
-	db.Exec("CREATE TABLE claim_values (value_id integer NOT NULL, claim_id uuid NOT NULL);")
-	db.Exec("CREATE TABLE claim_tags (tag_id integer NOT NULL, claim_id uuid NOT NULL);")
 
 }

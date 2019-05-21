@@ -35,23 +35,23 @@ Types of Changes, and fields used:
 */
 type ChangeLog struct {
 	Model
-	UserID     uint64        `json:"userId" sql:"not null"`
-	User       *User         `json:"user,omitempty"`
-	Type       int           `json:"type" sql:"not null"`
-	ArgumentID *NullableUUID `json:"argumentId,omitempty" sql:"type:uuid"`
-	Argument   *Argument     `json:"argument,omitempty"`
-	ClaimID    *NullableUUID `json:"claimId,omitempty" sql:"type:uuid"`
-	Claim      Claim         `json:"claim"`
-	OldClaimID *NullableUUID `json:"oldClaimId,omitempty" sql:"type:uuid"`
-	OldClaim   *Claim        `json:"oldClaim,omitempty"`
-	OldArgID   *NullableUUID `json:"oldArgId,omitempty" sql:"type:uuid"`
-	OldArg     *Argument     `json:"oldArg,omitempty"`
-	NewClaimID *NullableUUID `json:"newClaimId,omitempty" sql:"type:uuid"`
-	NewClaim   *Claim        `json:"newClaim,omitempty"`
-	NewArgID   *NullableUUID `json:"newArgId,omitempty" sql:"type:uuid"`
-	NewArg     *Argument     `json:"newArg,omitempty"`
-	OldArgType *int          `json:"oldArgType,omitempty"`
-	NewArgType *int          `json:"newArgType,omitempty"`
+	UserID     uint64    `json:"userId" sql:"not null"`
+	User       *User     `json:"user,omitempty"`
+	Type       int       `json:"type" sql:"not null"`
+	ArgumentID *string   `json:"argumentId,omitempty" sql:"type:uuid"`
+	Argument   *Argument `json:"argument,omitempty"`
+	ClaimID    *string   `json:"claimId,omitempty" sql:"type:uuid"`
+	Claim      Claim     `json:"claim"`
+	OldClaimID *string   `json:"oldClaimId,omitempty" sql:"type:uuid"`
+	OldClaim   *Claim    `json:"oldClaim,omitempty"`
+	OldArgID   *string   `json:"oldArgId,omitempty" sql:"type:uuid"`
+	OldArg     *Argument `json:"oldArg,omitempty"`
+	NewClaimID *string   `json:"newClaimId,omitempty" sql:"type:uuid"`
+	NewClaim   *Claim    `json:"newClaim,omitempty"`
+	NewArgID   *string   `json:"newArgId,omitempty" sql:"type:uuid"`
+	NewArg     *Argument `json:"newArg,omitempty"`
+	OldArgType *int      `json:"oldArgType,omitempty"`
+	NewArgType *int      `json:"newArgType,omitempty"`
 }
 
 func (cl ChangeLog) ValidateForCreate() GruffError {

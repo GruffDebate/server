@@ -18,9 +18,9 @@ func List(c echo.Context) error {
 	ctx := ServerContext(c)
 	db := ctx.Database
 
-	db = BasicJoins(ctx, c, db)
-	db = BasicFetch(ctx, c, db, ctx.UserContext.ID)
-	db = BasicPaging(ctx, c, db)
+	db = DefaultJoins(ctx, c, db)
+	db = DefaultFetch(ctx, c, db, ctx.UserContext.ID)
+	db = DefaultPaging(ctx, c, db)
 
 	items := reflect.New(reflect.SliceOf(ctx.Type)).Interface()
 	err := db.Find(items).Error
@@ -47,7 +47,7 @@ func Create(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	valerr := BasicValidationForCreate(ctx, c, item)
+	valerr := DefaultValidationForCreate(ctx, c, item)
 	if valerr != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(valerr.Error()))
 	}
@@ -75,8 +75,8 @@ func Get(c echo.Context) error {
 
 	item := reflect.New(ctx.Type).Interface()
 
-	db = BasicJoins(ctx, c, db)
-	//db = BasicFetch(ctx, c, db, id)
+	db = DefaultJoins(ctx, c, db)
+	//db = DefaultFetch(ctx, c, db, id)
 
 	err := db.Where("id = ?", id).First(item).Error
 	if err != nil {
@@ -121,7 +121,7 @@ func Update(c echo.Context) error {
 		}
 	}
 
-	err = BasicValidationForUpdate(ctx, c, item, fields)
+	err = DefaultValidationForUpdate(ctx, c, item, fields)
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
@@ -260,12 +260,12 @@ func RemoveAssociation(c echo.Context) error {
 	return c.JSON(http.StatusOK, item)
 }
 
-func BasicJoins(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB) *gorm.DB {
+func DefaultJoins(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB) *gorm.DB {
 	db = joinsFor(db, ctx)
 	return db
 }
 
-func BasicFetch(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, uid uint64) *gorm.DB {
+func DefaultFetch(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, uid uint64) *gorm.DB {
 	path := c.Path()
 	db = fetchFor(db, path, uid)
 	return db
@@ -300,7 +300,7 @@ func joinsFor(db *gorm.DB, ctx *gruff.ServerContext) *gorm.DB {
 	return db
 }
 
-func BasicPaging(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, opts ...bool) *gorm.DB {
+func DefaultPaging(ctx *gruff.ServerContext, c echo.Context, db *gorm.DB, opts ...bool) *gorm.DB {
 	queryTC := true
 	if len(opts) > 0 {
 		queryTC = opts[0]
@@ -361,7 +361,7 @@ func itemsOrEmptySlice(t reflect.Type, items interface{}) interface{} {
 	return items
 }
 
-func BasicValidationForCreate(ctx *gruff.ServerContext, c echo.Context, item interface{}) gruff.GruffError {
+func DefaultValidationForCreate(ctx *gruff.ServerContext, c echo.Context, item interface{}) gruff.GruffError {
 	if gruff.IsValidator(ctx.Type) {
 		validator := item.(gruff.Validator)
 		return validator.ValidateForCreate()
@@ -370,7 +370,7 @@ func BasicValidationForCreate(ctx *gruff.ServerContext, c echo.Context, item int
 	return nil
 }
 
-func BasicValidationForUpdate(ctx *gruff.ServerContext, c echo.Context, item interface{}, fields []string) error {
+func DefaultValidationForUpdate(ctx *gruff.ServerContext, c echo.Context, item interface{}, fields []string) error {
 	if gruff.IsValidator(ctx.Type) {
 		validator := item.(gruff.Validator)
 		return validator.ValidateForUpdate()

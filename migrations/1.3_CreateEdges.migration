@@ -1,0 +1,21 @@
+type: graph
+action: create
+name: debate_map
+edgedefinitions:
+   - collection: inferences
+     from: 
+         - claims
+         - arguments
+     to:
+         - arguments
+   - collection: base_claims
+     from: 
+         - claims
+         - arguments
+     to:
+         - claims
+   - collection: premises
+     from: 
+         - claims
+     to:
+         - claims

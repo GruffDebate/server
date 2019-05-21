@@ -3,15 +3,14 @@ package gruff
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 )
 
-const ARGUMENT_FOR int = 1
-const ARGUMENT_AGAINST int = 2
-
 /*
+ * Arguments are described in detail in the Canonical Debate White Paper: https://github.com/canonical-debate-lab/paper#312_Argument
+
   An Argument connects a Claim to another Claim or Argument
+
   That is:
      a Claim can be used as an ARGUMENT to either prove or disprove the truth of a claim,
      or to modify the relevance or impact of another argument.
@@ -21,106 +20,78 @@ const ARGUMENT_AGAINST int = 2
       Ex: "The defendant was in Cincinatti on the date of the murder"
     CON TRUTH: The Claim is used as evidence against another claim
       Ex: "The defendant was hospitalized on the date of the murder"
-    PRO RELEVANCE: The Claim is being used to show that another Argument is relevant
+    PRO RELEVANCE: The Claim is being used to show that another Argument is relevant and/or important
       Ex: "The murder occurred in Cincinatti"
-    CON RELEVANCE: The Claim is being used to show that another Argument is irrelevant
-      Ex: "The murder occurred in the same hospital in which the defendant was hospitalized"
-    PRO IMPACT: The Claim is being used to show the importance of another Argument
       Ex: "This argument clearly shows that the defendant has no alibi"
-    CON IMPACT: The Claim is being used to diminish the importance of another argument
+    CON RELEVANCE: The Claim is being used to show that another Argument is irrelevant and/or unimportant
+      Ex: "The murder occurred in the same hospital in which the defendant was hospitalized"
       Ex: "There is no evidence that the defendant ever left their room"
 
   A quick explanation of the fields:
-    Claim: The Debate (or claim) that is being used as an argument
+    Claim: The Debate (or claim) that is being used as the basis of the argument
     Target Claim: The "parent" Claim against which a pro/con truth argument is being made
     Target Argument: In the case of a relevance or impact argument, the argument to which it refers
+    Strength: The strength of an Argument is a combination of the Truth of its underlying Claim, and the Relevance Score.
+      It is a cached value derived from the Flat popular votes, as described here: https://github.com/canonical-debate-lab/paper#33311_Flat_Scores
+      and here: https://github.com/canonical-debate-lab/paper#33323_Popular_Vote
+    StrengthRU: The roll-up score, similar to Strength, but rolled up to Level 1 as described here: https://github.com/canonical-debate-lab/paper#33312_Rollup_Scores
 
   To help understand the difference between relevance and impact arguments, imagine an argument is a bullet:
     Impact is the size of your bullet
     Relevance is how well you hit your target
+  (note that because this difference is subtle enough to be difficult to separate one from the other,
+   the two concepts are reflected together in a single score called Relevance)
 
   Scoring:
     Truth: 1.0 = definitely true; 0.5 = equal chance true or false; 0.0 = definitely false. "The world is flat" should have a 0.000000000000000001 truth score.
-    Impact: 1.0 = This argument is definitely the most important argument for this side - no need to read any others; 0.5 = This is one more argument to consider; 0.01 = Probably not even worth including in the discussion
-    Relevance: 1.0 = Completely germaine and on-topic; 0.5 = Circumstantial or somewhat relevant; 0.01 = Totally off-point, should be ignored
-
- *
- * Topoi for Resolutions of Definition (for scoring Relevance/Impact):
- * - Is the interpretation relevant? (relevance)
- * - Is the interpretation fair?
- * - How should we choose among competing interpretations? (impact)
- *
- * Topoi for Resolutions of Value (for scoring Relevance/Impact):
- * - Is the condition truly good or bad as alleged? (i.e. which values are impacted, and is it positive or negative?)
- * - Has the value been properly applied? (relevance)
- * - How should we choose among competing values? (impact)
- *
- * Topoi for Resolutions of Policy (this would look differently in our model - one Issue with multiple claims as solutions?):
- * - Is there a problem? (could be represented by a "Do nothing" claim)
- * - Where is the credit or blame due?
- * - Will the proposal solve the problem?
- * - On balance, will things be better off? (trade offs - need to measure each proposal against multiple values)
- *
-
- * Types of evidence (Pro/Con-Truth arguments) (not implemented in Gruff):
- * - Examples
- * - Statistics
- * - Tangible objects
- * - Testimony
- * - Social consensus
-
- * Fallacies: accusations of standard fallacies can be used as arguments against relevance, impact, or truth
- * - Fallacies of Inference (con-impact? or con-relevance?):
- *   - Hasty generalizations
- *   - Unrepresentative samples
- *   - Fallacy of composition (if one is, then all are)
- *   - Fallacy of division (if most are, then this subgroup must be)
- *   - Errors in inference from sign (correlation vs. causation)
- *
- * - Fallacies of Relevance:
- *   - Ad Hominem
- *   - Appeal to Unreasonable Emotion
- * ... more
-
- --> True definition of fallacy: an argument that subverts the purpose of resolving a disagreement
-
+    Relevance: 1.0 = Completely on-topic and important; 0.5 = Circumstantial or somewhat relevant; 0.01 = Totally off-point, should be ignored
+    Strength: 1.0 = This argument is definitely the most important argument for this side - no need to read any others; 0.5 = This is one more argument to consider; 0.01 = Probably not even worth including in the discussion
 */
+
 type Argument struct {
 	Identifier
-	TargetClaimID    *NullableUUID `json:"targetClaimId,omitempty" sql:"type:uuid"`
-	TargetClaim      *Claim        `json:"targetClaim,omitempty"`
-	TargetArgumentID *NullableUUID `json:"targetArgId,omitempty" sql:"type:uuid"`
-	TargetArgument   *Argument     `json:"targetArg,omitempty"`
-	ClaimID          uuid.UUID     `json:"claimId" sql:"type:uuid;not null"`
-	Claim            *Claim        `json:"claim,omitempty"`
-	Title            string        `json:"title" sql:"not null" valid:"length(3|1000),required"`
-	Description      string        `json:"desc" valid:"length(3|4000)"`
-	Type             int           `json:"type" sql:"not null"`
-	Strength         float64       `json:"strength"`
-	StrengthRU       float64       `json:"strengthRU"`
-	Pro              []Argument    `json:"pro,omitempty"`
-	Con              []Argument    `json:"con,omitempty"`
+	TargetClaimID    *string    `json:"targetClaimId,omitempty"`
+	TargetClaim      *Claim     `json:"targetClaim,omitempty"`
+	TargetArgumentID *string    `json:"targetArgId,omitempty"`
+	TargetArgument   *Argument  `json:"targetArg,omitempty"`
+	ClaimID          string     `json:"claimId"`
+	Claim            *Claim     `json:"claim,omitempty"`
+	Title            string     `json:"title" valid:"length(3|1000),required"`
+	Negation         string     `json:"negation"`
+	Question         string     `json:"question"`
+	Description      string     `json:"desc" valid:"length(3|4000)"`
+	Note             string     `json:"note"`
+	Pro              bool       `json:"pro"`
+	Strength         float64    `json:"strength"`
+	StrengthRU       float64    `json:"strengthRU"`
+	ProArgs          []Argument `json:"proargs"`
+	ConArgs          []Argument `json:"conargs"`
 }
 
+// ArangoObject interface
+
+func (a Argument) CollectionName() string {
+	return "arguments"
+}
+
+func (a Argument) ArangoKey() string {
+	return a.Key
+}
+
+func (a Argument) ArangoID() string {
+	return fmt.Sprintf("%s/%s", a.CollectionName(), a.ArangoKey())
+}
+
+// Validator
+
 func (a Argument) ValidateForCreate() GruffError {
-	err := a.ValidateField("Title")
-	if err != nil {
+	if err := a.ValidateField("title"); err != nil {
 		return err
 	}
-	err = a.ValidateField("Description")
-	if err != nil {
+	if err := a.ValidateField("desc"); err != nil {
 		return err
 	}
-	err = a.ValidateField("Type")
-	if err != nil {
-		return err
-	}
-	err = a.ValidateIDs()
-	if err != nil {
-		return err
-	}
-	err = a.ValidateType()
-	if err != nil {
+	if err := a.ValidateIDs(); err != nil {
 		return err
 	}
 	return nil
@@ -136,11 +107,10 @@ func (a Argument) ValidateField(f string) GruffError {
 }
 
 func (a Argument) ValidateIDs() GruffError {
-	if a.ClaimID == uuid.Nil {
-		return NewBusinessError("ClaimID: non zero value required;")
+	if a.ClaimID == "" {
+		return NewBusinessError("claimId: non zero value required;")
 	}
-	if (a.TargetClaimID == nil || a.TargetClaimID.UUID == uuid.Nil) &&
-		(a.TargetArgumentID == nil || a.TargetArgumentID.UUID == uuid.Nil) {
+	if a.TargetClaimID == nil && a.TargetArgumentID == nil {
 		return NewBusinessError("An Argument must have a target Claim or target Argument ID")
 	}
 	if a.TargetClaimID != nil && a.TargetArgumentID != nil {
@@ -149,15 +119,13 @@ func (a Argument) ValidateIDs() GruffError {
 	return nil
 }
 
-func (a Argument) ValidateType() GruffError {
-	if a.Type != ARGUMENT_FOR && a.Type != ARGUMENT_AGAINST {
-		return NewBusinessError("Type: invalid;")
-	}
-	return nil
-}
-
 // Business methods
 
+// TODO: Create method should set default Strength to 0.5
+// TODO: implement Delete
+// TODO: implement curator permissions
+
+/*
 func (a Argument) UpdateStrength(ctx *ServerContext) {
 	ctx.Database.Exec("UPDATE arguments a SET strength = (SELECT AVG(strength) FROM argument_opinions WHERE argument_id = a.id) WHERE id = ?", a.ID)
 
@@ -170,6 +138,8 @@ func (a Argument) UpdateStrength(ctx *ServerContext) {
 
 func (a *Argument) UpdateStrengthRU(ctx *ServerContext) {
 	// TODO: do it all in SQL?
+	// TODO: use strategy pattern for different scoring mechanisms? Or leave external?
+	// TODO: use latest algorithm
 	proArgs, conArgs := a.Arguments(ctx)
 
 	if len(proArgs) > 0 || len(conArgs) > 0 {
@@ -202,6 +172,8 @@ func (a *Argument) UpdateStrengthRU(ctx *ServerContext) {
 	a.UpdateAncestorRUs(ctx)
 }
 
+*/
+/*
 func (a Argument) UpdateAncestorRUs(ctx *ServerContext) {
 	if a.TargetClaimID != nil {
 		claim := a.TargetClaim
@@ -349,28 +321,36 @@ func (a Argument) ScoreRU(ctx *ServerContext) float64 {
 
 	return strength * truth
 }
+*/
 
-func (a Argument) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argument) {
-	proArgs = a.Pro
-	conArgs = a.Con
+func (a *Argument) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argument) {
+	proArgs = a.ProArgs
+	conArgs = a.ConArgs
 
 	if len(proArgs) == 0 {
-		ctx.Database.
-			Preload("Claim").
-			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_FOR).
-			Where("target_argument_id = ?", a.ID).
-			Find(&proArgs)
+		/*
+			ctx.Database.
+				Preload("Claim").
+				Scopes(OrderByBestArgument).
+				Where("type = ?", ARGUMENT_FOR).
+				Where("target_argument_id = ?", a.ID).
+				Find(&proArgs)
+		*/
 	}
 
 	if len(conArgs) == 0 {
-		ctx.Database.
-			Preload("Claim").
-			Scopes(OrderByBestArgument).
-			Where("type = ?", ARGUMENT_AGAINST).
-			Where("target_argument_id = ?", a.ID).
-			Find(&conArgs)
+		/*
+			ctx.Database.
+				Preload("Claim").
+				Scopes(OrderByBestArgument).
+				Where("type = ?", ARGUMENT_AGAINST).
+				Where("target_argument_id = ?", a.ID).
+				Find(&conArgs)
+		*/
 	}
+
+	a.ProArgs = proArgs
+	a.ConArgs = conArgs
 
 	return
 }

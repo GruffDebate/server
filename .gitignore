@@ -4,6 +4,10 @@
 *.so
 gruff-server
 
+# Configuration files
+migrations/config
+migrations/config.test
+
 # Folders
 _obj
 _test

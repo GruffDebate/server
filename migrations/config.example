@@ -1,0 +1,10 @@
+endpoints:
+   - http://localhost:8529
+username: root
+password: 
+migrationspath: /path/to/arango-importer/migrations
+db: gruff
+extras:
+  {username: myuser,
+   password: mypassword}
+   

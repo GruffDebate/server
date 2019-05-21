@@ -1,19 +1,20 @@
 package gruff
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/GruffDebate/server/support"
-	"github.com/jinzhu/gorm"
 )
 
+// TODO: Update this for ArangoDB
 type Model struct {
-	ID        uint64     `json:"id" gorm:"primary_key"`
-	CreatedAt time.Time  `json:"-" sql:"DEFAULT:current_timestamp"`
-	UpdatedAt time.Time  `json:"-" sql:"DEFAULT:current_timestamp"`
+	ID        uint64     `json:"id"`
+	CreatedAt time.Time  `json:"-"`
+	UpdatedAt time.Time  `json:"-"`
 	DeletedAt *time.Time `json:"-" settable:"false"`
 }
 
@@ -22,7 +23,8 @@ type ReplaceMany struct {
 }
 
 type ServerContext struct {
-	Database    *gorm.DB
+	Context     context.Context
+	Arango      ArangoContext
 	Payload     map[string]interface{}
 	Request     map[string]interface{}
 	Type        reflect.Type
@@ -34,6 +36,10 @@ type ServerContext struct {
 	Path        string
 	Endpoint    string
 	RequestID   string
+}
+
+func (ctx ServerContext) Rollback() GruffError {
+	return ctx.Arango.Rollback()
 }
 
 func ModelToJson(model interface{}) string {
