@@ -73,3 +73,240 @@ func TestArgumentValidateForUpdate(t *testing.T) {
 	a.TargetClaimID = support.StringPtr(uuid.New().String())
 	assert.Nil(t, a.ValidateForUpdate())
 }
+
+func TestCreateArgumentForClaimNoBase(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "Let's create a new claim",
+		Description: "Claims in general should be true or false",
+		Negation:    "Let's not...",
+		Question:    "Should we create a new Claim?",
+		Note:        "He who notes is a note taker",
+		Image:       "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Let's create a new argument",
+		Description:   "Arguments are all about connecting things",
+		Negation:      "Lettuce not...",
+		Question:      "Should we create a new Argument?",
+		Note:          "I'm not sure that there should be notes for this",
+		Pro:           true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+
+	saved, err := arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, saved.Key)
+	assert.NotEmpty(t, saved.ID)
+	assert.NotEmpty(t, saved.CreatedAt)
+	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Nil(t, saved.DeletedAt)
+	assert.Equal(t, arg.Title, saved.Title)
+	assert.Equal(t, arg.Description, saved.Description)
+	assert.Equal(t, arg.Negation, saved.Negation)
+	assert.Equal(t, arg.Question, saved.Question)
+	assert.Equal(t, arg.Note, saved.Note)
+	assert.Equal(t, arg.TargetClaimID, saved.TargetClaimID)
+	assert.Equal(t, arg.Pro, saved.Pro)
+
+	// Make sure a base claim was created
+	bc := Claim{}
+	bc.ID = arg.ClaimID
+	bc, err = bc.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, bc.Key)
+	assert.NotEmpty(t, bc.CreatedAt)
+	assert.NotEmpty(t, bc.UpdatedAt)
+	assert.Nil(t, bc.DeletedAt)
+	assert.Equal(t, arg.Title, bc.Title)
+	assert.Equal(t, arg.Description, bc.Description)
+	assert.Equal(t, arg.Negation, bc.Negation)
+	assert.Equal(t, arg.Question, bc.Question)
+	assert.Equal(t, arg.Note, bc.Note)
+	assert.False(t, bc.MultiPremise)
+
+	// Check edges
+	bce, err := arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, bce.Key)
+	assert.NotEmpty(t, bce.CreatedAt)
+	assert.Nil(t, bce.DeletedAt)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, bc.ArangoID(), bce.To)
+
+	inf, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, inf.Key)
+	assert.NotEmpty(t, inf.CreatedAt)
+	assert.Nil(t, inf.DeletedAt)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+}
+
+func TestCreateArgumentForClaimWithBase(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "Let's create a new claim",
+		Description: "Claims in general should be true or false",
+		Negation:    "Let's not...",
+		Question:    "Should we create a new Claim?",
+		Note:        "He who notes is a note taker",
+		Image:       "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	baseClaim := Claim{
+		Title:       "Bass!",
+		Question:    "How low can you go?",
+		Negation:    "Death row",
+		Description: "What a brotha knows",
+		Image:       "http://straightfromthea.com/wp-content/uploads/2017/08/Flavour-and-Chuck-D-520x397.jpg",
+	}
+	err = baseClaim.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := Argument{
+		TargetClaimID: &claim.ID,
+		ClaimID:       baseClaim.ID,
+		Title:         "Let's create a new argument",
+		Description:   "Arguments are all about connecting things",
+		Negation:      "Lettuce not...",
+		Question:      "Should we create a new Argument?",
+		Note:          "I'm not sure that there should be notes for this",
+		Pro:           true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+
+	saved, err := arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, saved.Key)
+	assert.NotEmpty(t, saved.ID)
+	assert.NotEmpty(t, saved.CreatedAt)
+	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Nil(t, saved.DeletedAt)
+	assert.Equal(t, arg.Title, saved.Title)
+	assert.Equal(t, arg.Description, saved.Description)
+	assert.Equal(t, arg.Negation, saved.Negation)
+	assert.Equal(t, arg.Question, saved.Question)
+	assert.Equal(t, arg.Note, saved.Note)
+	assert.Equal(t, arg.TargetClaimID, saved.TargetClaimID)
+	assert.Equal(t, arg.ClaimID, saved.ClaimID)
+	assert.Equal(t, arg.Pro, saved.Pro)
+
+	// Check edges
+	bce, err := arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, bce.Key)
+	assert.NotEmpty(t, bce.CreatedAt)
+	assert.Nil(t, bce.DeletedAt)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, inf.Key)
+	assert.NotEmpty(t, inf.CreatedAt)
+	assert.Nil(t, inf.DeletedAt)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+}
+
+func TestCreateArgumentForArgument(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "Let's create a new claim",
+		Description: "Claims in general should be true or false",
+		Negation:    "Let's not...",
+		Question:    "Should we create a new Claim?",
+		Note:        "He who notes is a note taker",
+		Image:       "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	targarg := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Daenerys",
+		Description:   "Queen of dragons",
+		Negation:      "Not Queen",
+		Question:      "Will she be queen?",
+		Note:          "Dracarys",
+		Pro:           true,
+	}
+	err = targarg.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := Argument{
+		TargetArgumentID: &targarg.ID,
+		Title:            "Let's create a new argument",
+		Description:      "Arguments are all about connecting things",
+		Negation:         "Lettuce not...",
+		Question:         "Should we create a new Argument?",
+		Note:             "I'm not sure that there should be notes for this",
+		Pro:              true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+
+	saved, err := arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, saved.Key)
+	assert.NotEmpty(t, saved.ID)
+	assert.NotEmpty(t, saved.CreatedAt)
+	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Nil(t, saved.DeletedAt)
+	assert.Equal(t, arg.Title, saved.Title)
+	assert.Equal(t, arg.Description, saved.Description)
+	assert.Equal(t, arg.Negation, saved.Negation)
+	assert.Equal(t, arg.Question, saved.Question)
+	assert.Equal(t, arg.Note, saved.Note)
+	assert.Equal(t, arg.TargetClaimID, saved.TargetClaimID)
+	assert.Equal(t, arg.ClaimID, saved.ClaimID)
+	assert.Equal(t, arg.Pro, saved.Pro)
+
+	// Make sure a base claim was created
+	bc := Claim{}
+	bc.ID = arg.ClaimID
+	bc, err = bc.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, bc.Key)
+	assert.NotEmpty(t, bc.CreatedAt)
+	assert.NotEmpty(t, bc.UpdatedAt)
+	assert.Nil(t, bc.DeletedAt)
+	assert.Equal(t, arg.Title, bc.Title)
+	assert.Equal(t, arg.Description, bc.Description)
+	assert.Equal(t, arg.Negation, bc.Negation)
+	assert.Equal(t, arg.Question, bc.Question)
+	assert.Equal(t, arg.Note, bc.Note)
+	assert.False(t, bc.MultiPremise)
+
+	// Check edges
+	bce, err := arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, bce.Key)
+	assert.NotEmpty(t, bce.CreatedAt)
+	assert.Nil(t, bce.DeletedAt)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, bc.ArangoID(), bce.To)
+
+	inf, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, inf.Key)
+	assert.NotEmpty(t, inf.CreatedAt)
+	assert.Nil(t, inf.DeletedAt)
+	assert.Equal(t, targarg.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+}

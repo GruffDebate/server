@@ -119,7 +119,180 @@ func (a Argument) ValidateIDs() GruffError {
 	return nil
 }
 
+// Creator
+
+func (a *Argument) Create(ctx *ServerContext) GruffError {
+	col, err := ctx.Arango.CollectionFor(a)
+	if err != nil {
+		return err
+	}
+
+	// TODO: validate for create
+
+	var baseClaim Claim
+	if a.ClaimID == "" {
+		// Need to create a Base Claim for this Argument with the same title and description
+		baseClaim = Claim{
+			Title:       a.Title,
+			Description: a.Description,
+			Negation:    a.Negation,
+			Question:    a.Question,
+			Note:        a.Note,
+		}
+		if err := baseClaim.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		a.ClaimID = baseClaim.ID
+	} else {
+		baseClaim.ID = a.ClaimID
+		if baseClaim, err = baseClaim.Load(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	a.PrepareForCreate()
+
+	if _, dberr := col.CreateDocument(ctx.Context, a); dberr != nil {
+		ctx.Rollback()
+		return NewServerError(dberr.Error())
+	}
+
+	edge := BaseClaimEdge{
+		From: a.ArangoID(),
+		To:   baseClaim.ArangoID(),
+	}
+
+	if err := edge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	if a.TargetClaimID != nil {
+		targetClaim := Claim{}
+		targetClaim.ID = *a.TargetClaimID
+		if targetClaim, err = targetClaim.Load(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err = targetClaim.AddArgument(ctx, *a); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	} else {
+		targetArg := Argument{}
+		targetArg.ID = *a.TargetArgumentID
+		if targetArg, err = targetArg.Load(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err = targetArg.AddArgument(ctx, *a); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	return nil
+}
+
+// TODO: refactor for reuse
+func (a Argument) Load(ctx *ServerContext) (Argument, GruffError) {
+	db := ctx.Arango.DB
+
+	loaded := Argument{}
+	col, err := ctx.Arango.CollectionFor(a)
+	if err != nil {
+		return loaded, err
+	}
+
+	if a.ArangoKey() != "" {
+		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), &loaded)
+		if dberr != nil {
+			return loaded, NewServerError(dberr.Error())
+		}
+	} else if a.ID != "" {
+		query := fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
+		bindVars := map[string]interface{}{
+			"id": a.ID,
+		}
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		if err != nil {
+			return loaded, NewServerError(err.Error())
+		}
+		defer cursor.Close()
+		for cursor.HasMore() {
+			_, err := cursor.ReadDocument(ctx.Context, &loaded)
+			if err != nil {
+				return loaded, NewServerError(err.Error())
+			}
+		}
+	} else {
+		return loaded, NewBusinessError("There is no key or id for this Argument.")
+	}
+	return loaded, nil
+}
+
 // Business methods
+
+func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
+	edge := Inference{
+		From: a.ArangoID(),
+		To:   arg.ArangoID(),
+	}
+
+	if err := edge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+	return nil
+}
+
+func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
+	db := ctx.Arango.DB
+	edge := Inference{}
+
+	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to LIMIT 1 RETURN e", edge.CollectionName())
+	bindVars := map[string]interface{}{
+		"to": a.ArangoID(),
+	}
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return edge, NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	for cursor.HasMore() {
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edge, NewServerError(err.Error())
+		}
+	}
+
+	return edge, nil
+}
+
+func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) {
+	db := ctx.Arango.DB
+	edge := BaseClaimEdge{}
+
+	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from LIMIT 1 RETURN e", edge.CollectionName())
+	bindVars := map[string]interface{}{
+		"from": a.ArangoID(),
+	}
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return edge, NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	for cursor.HasMore() {
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edge, NewServerError(err.Error())
+		}
+	}
+
+	return edge, nil
+}
 
 // TODO: Create method should set default Strength to 0.5
 // TODO: implement Delete

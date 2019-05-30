@@ -86,26 +86,51 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
+
 	}
+
+	// TODO: validate for create
 
 	c.PrepareForCreate()
 
-	_, aerr := col.CreateDocument(ctx.Context, c)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
+	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
+		return NewServerError(dberr.Error())
 	}
 	return nil
 }
 
-func (c *Claim) Load(ctx *ServerContext) (Claim, GruffError) {
+func (c Claim) Load(ctx *ServerContext) (Claim, GruffError) {
+	db := ctx.Arango.DB
+
 	loaded := Claim{}
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return loaded, err
 	}
-	_, aerr := col.ReadDocument(ctx.Context, c.ArangoKey(), &loaded)
-	if aerr != nil {
-		return loaded, NewServerError(aerr.Error())
+
+	if c.ArangoKey() != "" {
+		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), &loaded)
+		if dberr != nil {
+			return loaded, NewServerError(dberr.Error())
+		}
+	} else if c.ID != "" {
+		query := fmt.Sprintf("FOR c IN %s FILTER c.id == @id AND c.end == null SORT c.start DESC LIMIT 1 RETURN c", c.CollectionName())
+		bindVars := map[string]interface{}{
+			"id": c.ID,
+		}
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		if err != nil {
+			return loaded, NewServerError(err.Error())
+		}
+		defer cursor.Close()
+		for cursor.HasMore() {
+			_, err := cursor.ReadDocument(ctx.Context, &loaded)
+			if err != nil {
+				return loaded, NewServerError(err.Error())
+			}
+		}
+	} else {
+		return loaded, NewBusinessError("There is no key or id for this Claim.")
 	}
 	return loaded, nil
 }
@@ -201,9 +226,9 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	if err != nil {
 		return err
 	}
-	_, aerr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
+	_, dberr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
+	if dberr != nil {
+		return NewServerError(dberr.Error())
 	}
 
 	// Delete any edges to or from this Claim
@@ -260,6 +285,19 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 }
 
 // Business methods
+
+func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
+	edge := Inference{
+		From: c.ArangoID(),
+		To:   a.ArangoID(),
+	}
+
+	if err := edge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+	return nil
+}
 
 func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	if premise == nil {

@@ -10,10 +10,41 @@ func TestCreateClaim(t *testing.T) {
 	setupDB()
 	defer teardownDB()
 
-	assert.Equal(t, "A", "A")
+	claim := Claim{
+		Title:        "Let's create a new claim",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+
+	saved, err := claim.Load(CTX)
+	assert.Error(t, err)
+	assert.Empty(t, saved.Key)
+
+	err = claim.Create(CTX)
+	assert.NoError(t, err)
+	saved, err = claim.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, saved.Key)
+	assert.NotEmpty(t, saved.ID)
+	assert.NotEmpty(t, saved.CreatedAt)
+	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Nil(t, saved.DeletedAt)
+	assert.Equal(t, claim.Title, saved.Title)
+	assert.Equal(t, claim.Description, saved.Description)
+	assert.Equal(t, claim.Negation, saved.Negation)
+	assert.Equal(t, claim.Question, saved.Question)
+	assert.Equal(t, claim.Note, saved.Note)
+	assert.Equal(t, claim.Image, saved.Image)
+	assert.True(t, saved.MultiPremise)
+	assert.Equal(t, PREMISE_RULE_ALL, saved.PremiseRule)
 }
 
-func TestCreateFullGraph(t *testing.T) {
+func TestClaimAddPremise(t *testing.T) {
 	setupDB()
 	defer teardownDB()
 
@@ -40,13 +71,9 @@ func TestCreateFullGraph(t *testing.T) {
 		MultiPremise: false,
 	}
 
-	saved, err := topClaim.Load(CTX)
-	assert.Error(t, err, "some kind of error")
-	assert.Empty(t, saved.Key)
-
-	err = topClaim.Create(CTX)
+	err := topClaim.Create(CTX)
 	assert.NoError(t, err)
-	saved, err = topClaim.Load(CTX)
+	saved, err := topClaim.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
@@ -72,6 +99,10 @@ func TestCreateFullGraph(t *testing.T) {
 	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
 	assert.Equal(t, 1, premiseEdges[0].Order)
 
+	n, err := topClaim.NumberOfPremises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+
 	err = topClaim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
 	saved, err = premiseClaim2.Load(CTX)
@@ -93,5 +124,33 @@ func TestCreateFullGraph(t *testing.T) {
 	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
 	assert.Equal(t, 2, premiseEdges[1].Order)
 
-	// TODO: assert versioning!
+	n, err = topClaim.NumberOfPremises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), n)
+
+	n, err = premiseClaim1.NumberOfPremises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), n)
+
+	n, err = premiseClaim2.NumberOfPremises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), n)
+
 }
+
+func TestClaimArangoID(t *testing.T) {
+	claim := Claim{}
+	claim.Key = "somethingpredictable"
+	assert.Equal(t, "claims/somethingpredictable", claim.ArangoID())
+}
+
+func TestClaimLoadByID(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+}
+
+// TODO: Test Adding an Argument
+// TODO: Test getting an Argument
+// TODO: Test Inferences
+// TODO: Test BaseClaimEdges

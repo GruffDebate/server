@@ -5,7 +5,6 @@ This project is the server-side API written in Golang, with ArangoDB as the back
 
 This project is one of many experiments in trying to achieve the goals laid out in The Canonical Debate white paper: https://github.com/canonical-debate-lab/paper
 
-## Database
 ## Install ArangoDB
 If you haven't already, you need to install the [ArangoDB](https://arangodb.com/) database, version 3.1 or later.
 

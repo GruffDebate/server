@@ -36,8 +36,7 @@ func (i *Inference) Create(ctx *ServerContext) GruffError {
 
 	i.PrepareForCreate()
 
-	meta, aerr := col.CreateDocument(ctx.Context, i)
-	fmt.Printf("-------------WTF is Meta?: %+v\n", meta)
+	_, aerr := col.CreateDocument(ctx.Context, i)
 	if aerr != nil {
 		return NewServerError(aerr.Error())
 	}
@@ -53,8 +52,7 @@ func (i *Inference) Delete(ctx *ServerContext) GruffError {
 	if err != nil {
 		return err
 	}
-	meta, aerr := col.UpdateDocument(ctx.Context, i.ArangoKey(), patch)
-	fmt.Printf("-------------WTF is Meta?: %+v\n", meta)
+	_, aerr := col.UpdateDocument(ctx.Context, i.ArangoKey(), patch)
 	if aerr != nil {
 		return NewServerError(aerr.Error())
 	}
