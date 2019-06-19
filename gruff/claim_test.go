@@ -2,7 +2,9 @@ package gruff
 
 import (
 	"testing"
+	"time"
 
+	"github.com/GruffDebate/server/support"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -103,6 +105,11 @@ func TestClaimAddPremise(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), n)
 
+	premises, err := topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+
 	err = topClaim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
 	saved, err = premiseClaim2.Load(CTX)
@@ -136,6 +143,11 @@ func TestClaimAddPremise(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), n)
 
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
 }
 
 func TestClaimArangoID(t *testing.T) {
@@ -150,7 +162,532 @@ func TestClaimLoadByID(t *testing.T) {
 
 }
 
-// TODO: Test Adding an Argument
-// TODO: Test getting an Argument
-// TODO: Test Inferences
-// TODO: Test BaseClaimEdges
+func TestClaimVersion(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "I dare you to doubt me",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is all about doubting. No links are going here.",
+		Image:        "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	premiseClaim1 := Claim{
+		Title:        "I am the one who is daring you to doubt mean",
+		Description:  "The person that is daring you to doubt me being me",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim1)
+	assert.NoError(t, err)
+
+	premiseClaim2 := Claim{
+		Title:        "Since it is I that am daring you, you therefore must not doubt",
+		Description:  "I am undoubtable",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim2)
+	assert.NoError(t, err)
+
+	distantClaim := Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = distantClaim.Create(CTX)
+	assert.NoError(t, err)
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Let's create a new argument",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "I beg to differ",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+
+	argPC1 := Argument{
+		TargetClaimID: &premiseClaim1.ID,
+		Title:         "Let's create a new argument",
+	}
+	err = argPC1.Create(CTX)
+	assert.NoError(t, err)
+
+	argDC1 := Argument{
+		TargetClaimID: &distantClaim.ID,
+		ClaimID:       claim.ID,
+		Title:         "I want to get away",
+	}
+	err = argDC1.Create(CTX)
+	assert.NoError(t, err)
+
+	arg1arg := Argument{
+		TargetArgumentID: &arg1.ID,
+		Title:            "Let's create a new argument argument",
+		Pro:              false,
+	}
+	err = arg1arg.Create(CTX)
+	assert.NoError(t, err)
+
+	// Next check edges, then version and recheck everything
+	premiseEdges, err := claim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[1].From)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
+
+	inferences, err := claim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, claim.ArangoID(), inferences[0].From)
+	assert.Equal(t, claim.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+
+	bces, err := claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	args, err := claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	// Version the claim
+	origClaimKey := claim.ArangoKey()
+
+	claim.Title = "New Title"
+	c, err := claim.Version(CTX)
+	assert.NoError(t, err)
+
+	c, err = c.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, c.DeletedAt)
+	assert.Equal(t, "New Title", c.Title)
+	assert.NotEqual(t, origClaimKey, c.ArangoKey())
+
+	origClaim := Claim{}
+	origClaim.Key = origClaimKey
+	origClaim, err = origClaim.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, origClaim.DeletedAt)
+	assert.Equal(t, "I dare you to doubt me", origClaim.Title)
+	assert.Equal(t, origClaimKey, origClaim.ArangoKey())
+
+	// Verify new edges were created
+	premiseEdges, err = c.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, c.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, c.ArangoID(), premiseEdges[1].From)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
+	assert.Nil(t, premiseEdges[0].DeletedAt)
+	assert.Nil(t, premiseEdges[1].DeletedAt)
+
+	inferences, err = c.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, c.ArangoID(), inferences[0].From)
+	assert.Equal(t, c.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+	assert.Nil(t, inferences[0].DeletedAt)
+	assert.Nil(t, inferences[1].DeletedAt)
+
+	bces, err = c.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
+	assert.Equal(t, c.ArangoID(), bces[0].To)
+	assert.Nil(t, bces[0].DeletedAt)
+
+	args, err = claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	// Verify that the old edges were deleted
+	premiseEdges, err = origClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, origClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, origClaim.ArangoID(), premiseEdges[1].From)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
+	assert.NotNil(t, premiseEdges[0].DeletedAt)
+	assert.NotNil(t, premiseEdges[1].DeletedAt)
+
+	inferences, err = origClaim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, origClaim.ArangoID(), inferences[0].From)
+	assert.Equal(t, origClaim.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+	assert.NotNil(t, inferences[0].DeletedAt)
+	assert.NotNil(t, inferences[1].DeletedAt)
+
+	bces, err = origClaim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
+	assert.Equal(t, origClaim.ArangoID(), bces[0].To)
+	assert.NotNil(t, bces[0].DeletedAt)
+}
+
+func TestLoadClaimAtDate(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "I dare you to doubt me",
+		Description: "I am true. Woe be the person that doubts my veracity",
+		Negation:    "I dare you to accept me",
+		Question:    "Do you dare to doubt me?",
+		Note:        "This Claim is all about doubting. No links are going here.",
+		Image:       "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
+	}
+	claim.DeletedAt = support.TimePtr(time.Now().Add(-24 * time.Hour))
+
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
+	col, _ := CTX.Arango.CollectionFor(claim)
+	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
+
+	firstKey := claim.ArangoKey()
+
+	claim.DeletedAt = support.TimePtr(time.Now().Add(-1 * time.Hour))
+	err = claim.Create(CTX)
+	assert.NoError(t, err)
+	patch["start"] = time.Now().Add(-24 * time.Hour)
+	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
+
+	secondKey := claim.ArangoKey()
+
+	claim.DeletedAt = nil
+	err = claim.Create(CTX)
+	assert.NoError(t, err)
+	patch["start"] = time.Now().Add(-1 * time.Hour)
+	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
+
+	thirdKey := claim.ArangoKey()
+
+	lookup := Claim{}
+	lookup.ID = claim.ID
+	result, err := lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
+
+	lookup.CreatedAt = time.Now().Add(-1 * time.Minute)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
+	thirdCreatedAt := result.CreatedAt
+
+	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, secondKey, result.ArangoKey())
+	secondCreatedAt := result.CreatedAt
+
+	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, firstKey, result.ArangoKey())
+	firstCreatedAt := result.CreatedAt
+
+	// TODO: Throw a NotFoundError?
+	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, "", result.ArangoKey())
+
+	lookup.CreatedAt = firstCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, firstKey, result.ArangoKey())
+
+	lookup.CreatedAt = secondCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, secondKey, result.ArangoKey())
+
+	lookup.CreatedAt = thirdCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
+}
+
+func TestClaimReorderPremise(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	topClaim := Claim{
+		Title:        "I dare you to doubt me",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is all about doubting. No links are going here.",
+		Image:        "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+
+	premiseClaim1 := Claim{
+		Title:        "I am the one who is daring you to doubt mean",
+		Description:  "The person that is daring you to doubt me being me",
+		MultiPremise: false,
+	}
+
+	premiseClaim2 := Claim{
+		Title:        "Since it is I that am daring you, you therefore must not doubt",
+		Description:  "I am undoubtable",
+		MultiPremise: false,
+	}
+
+	premiseClaim3 := Claim{
+		Title: "I don't even get a description",
+	}
+
+	premiseClaim4 := Claim{
+		Title: "Talk to the hand",
+	}
+
+	err := topClaim.Create(CTX)
+	assert.NoError(t, err)
+
+	err = topClaim.AddPremise(CTX, &premiseClaim1)
+	assert.NoError(t, err)
+
+	err = topClaim.AddPremise(CTX, &premiseClaim2)
+	assert.NoError(t, err)
+
+	err = topClaim.AddPremise(CTX, &premiseClaim3)
+	assert.NoError(t, err)
+
+	err = topClaim.AddPremise(CTX, &premiseClaim4)
+	assert.NoError(t, err)
+
+	premises, err := topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	edges, err := topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim1, 0)
+	assert.Error(t, err)
+	assert.Equal(t, "Order: invalid value;", err.Error())
+
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim1, 5)
+	assert.Error(t, err)
+	assert.Equal(t, "Order: the new order is higher than the number of premises;", err.Error())
+
+	// Move the first to the last
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim1, 4)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	// Move the last to the first
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	// Move back
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim2, 3)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	// Move forward
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim2, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	// Move second to last
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim2, 4)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+
+	// Move third to first
+	premises, err = topClaim.ReorderPremise(CTX, premiseClaim4, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[3].ArangoID())
+
+	premises, err = topClaim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(premises))
+	assert.Equal(t, premiseClaim4.ArangoID(), premises[0].ArangoID())
+	assert.Equal(t, premiseClaim1.ArangoID(), premises[1].ArangoID())
+	assert.Equal(t, premiseClaim3.ArangoID(), premises[2].ArangoID())
+	assert.Equal(t, premiseClaim2.ArangoID(), premises[3].ArangoID())
+
+	edges, err = topClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(edges))
+	assert.Equal(t, premiseClaim4.ArangoID(), edges[0].To)
+	assert.Equal(t, premiseClaim1.ArangoID(), edges[1].To)
+	assert.Equal(t, premiseClaim3.ArangoID(), edges[2].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), edges[3].To)
+	assert.Equal(t, 1, edges[0].Order)
+	assert.Equal(t, 2, edges[1].Order)
+	assert.Equal(t, 3, edges[2].Order)
+	assert.Equal(t, 4, edges[3].Order)
+}

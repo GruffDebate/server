@@ -2,6 +2,7 @@ package gruff
 
 import (
 	"testing"
+	"time"
 
 	"github.com/GruffDebate/server/support"
 	"github.com/google/uuid"
@@ -309,4 +310,107 @@ func TestCreateArgumentForArgument(t *testing.T) {
 	assert.Nil(t, inf.DeletedAt)
 	assert.Equal(t, targarg.ArangoID(), inf.From)
 	assert.Equal(t, arg.ArangoID(), inf.To)
+}
+
+func TestLoadArgumentAtDate(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "Let's create a new claim",
+		Description: "Claims in general should be true or false",
+		Negation:    "Let's not...",
+		Question:    "Should we create a new Claim?",
+		Note:        "He who notes is a note taker",
+		Image:       "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Let's create a new argument",
+		Description:   "Arguments are all about connecting things",
+		Negation:      "Lettuce not...",
+		Question:      "Should we create a new Argument?",
+		Note:          "I'm not sure that there should be notes for this",
+		Pro:           true,
+	}
+	arg.DeletedAt = support.TimePtr(time.Now().Add(-24 * time.Hour))
+
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
+	col, _ := CTX.Arango.CollectionFor(arg)
+	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
+
+	firstKey := arg.ArangoKey()
+
+	arg.DeletedAt = support.TimePtr(time.Now().Add(-1 * time.Hour))
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	patch["start"] = time.Now().Add(-24 * time.Hour)
+	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
+
+	secondKey := arg.ArangoKey()
+
+	arg.DeletedAt = nil
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	patch["start"] = time.Now().Add(-1 * time.Hour)
+	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
+
+	thirdKey := arg.ArangoKey()
+
+	lookup := Argument{}
+	lookup.ID = arg.ID
+	result, err := lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
+
+	lookup.CreatedAt = time.Now().Add(-1 * time.Minute)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
+	thirdCreatedAt := result.CreatedAt
+
+	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, secondKey, result.ArangoKey())
+	secondCreatedAt := result.CreatedAt
+
+	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, firstKey, result.ArangoKey())
+	firstCreatedAt := result.CreatedAt
+
+	// TODO: Throw a NotFoundError?
+	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, "", result.ArangoKey())
+
+	lookup.CreatedAt = firstCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, firstKey, result.ArangoKey())
+
+	lookup.CreatedAt = secondCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, result.DeletedAt)
+	assert.Equal(t, secondKey, result.ArangoKey())
+
+	lookup.CreatedAt = thirdCreatedAt
+	result, err = lookup.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, result.DeletedAt)
+	assert.Equal(t, thirdKey, result.ArangoKey())
 }

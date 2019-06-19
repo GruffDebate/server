@@ -44,6 +44,20 @@ func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
+func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) GruffError {
+	col, err := ctx.Arango.CollectionFor(p)
+	if err != nil {
+		return err
+	}
+
+	patch := map[string]interface{}{"order": order}
+	_, aerr := col.UpdateDocument(ctx.Context, p.ArangoKey(), patch)
+	if aerr != nil {
+		return NewServerError(aerr.Error())
+	}
+	return nil
+}
+
 func (p *PremiseEdge) Delete(ctx *ServerContext) GruffError {
 	p.PrepareForDelete()
 	patch := map[string]interface{}{

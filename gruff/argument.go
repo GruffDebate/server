@@ -2,6 +2,7 @@ package gruff
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jinzhu/gorm"
 )
@@ -212,9 +213,16 @@ func (a Argument) Load(ctx *ServerContext) (Argument, GruffError) {
 			return loaded, NewServerError(dberr.Error())
 		}
 	} else if a.ID != "" {
-		query := fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
+		var empty time.Time
+		var query string
 		bindVars := map[string]interface{}{
 			"id": a.ID,
+		}
+		if a.CreatedAt == empty {
+			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
+		} else {
+			bindVars["start"] = a.CreatedAt
+			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
 		}
 		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
