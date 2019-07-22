@@ -26,6 +26,10 @@ func (bc BaseClaimEdge) ArangoID() string {
 	return fmt.Sprintf("%s/%s", bc.CollectionName(), bc.ArangoKey())
 }
 
+func (bc BaseClaimEdge) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
 // Creator
 
 func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
@@ -34,7 +38,7 @@ func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	bc.PrepareForCreate()
+	bc.PrepareForCreate(ctx.UserContext)
 
 	_, aerr := col.CreateDocument(ctx.Context, bc)
 	if aerr != nil {

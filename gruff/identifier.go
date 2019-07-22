@@ -29,7 +29,7 @@ func (i Identifier) ValidateField(f string) GruffError {
 	return ValidateStructField(i, f)
 }
 
-func (i *Identifier) PrepareForCreate() {
+func (i *Identifier) PrepareForCreate(u User) {
 	i.Key = uuid.New().String()
 	if i.ID == "" {
 		// Brand new item, rather than a new version
@@ -37,6 +37,7 @@ func (i *Identifier) PrepareForCreate() {
 	}
 	i.CreatedAt = time.Now()
 	i.UpdatedAt = time.Now()
+	i.CreatedByID = u.ArangoID()
 	return
 }
 
@@ -48,4 +49,13 @@ func (i *Identifier) PrepareForDelete() {
 func IsIdentifier(t reflect.Type) bool {
 	_, is := t.FieldByName("Identifier")
 	return is
+}
+
+func GetIdentifier(item interface{}) (Identifier, GruffError) {
+	if !IsIdentifier(reflect.TypeOf(item)) {
+		return Identifier{}, NewServerError("Item is not an Identifier")
+	}
+
+	id := reflect.ValueOf(item).FieldByName("Identifier").Interface().(Identifier)
+	return id, nil
 }

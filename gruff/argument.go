@@ -83,6 +83,10 @@ func (a Argument) ArangoID() string {
 	return fmt.Sprintf("%s/%s", a.CollectionName(), a.ArangoKey())
 }
 
+func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
 // Validator
 
 func (a Argument) ValidateForCreate() GruffError {
@@ -147,13 +151,13 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 		a.ClaimID = baseClaim.ID
 	} else {
 		baseClaim.ID = a.ClaimID
-		if baseClaim, err = baseClaim.Load(ctx); err != nil {
+		if err = baseClaim.Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
 	}
 
-	a.PrepareForCreate()
+	a.PrepareForCreate(ctx.UserContext)
 
 	if _, dberr := col.CreateDocument(ctx.Context, a); dberr != nil {
 		ctx.Rollback()
@@ -173,7 +177,7 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 	if a.TargetClaimID != nil {
 		targetClaim := Claim{}
 		targetClaim.ID = *a.TargetClaimID
-		if targetClaim, err = targetClaim.Load(ctx); err != nil {
+		if err = (&targetClaim).Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -184,7 +188,7 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 	} else {
 		targetArg := Argument{}
 		targetArg.ID = *a.TargetArgumentID
-		if targetArg, err = targetArg.Load(ctx); err != nil {
+		if err = targetArg.Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -197,20 +201,20 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// TODO: refactor for reuse
-func (a Argument) Load(ctx *ServerContext) (Argument, GruffError) {
+// Loader
+
+func (a *Argument) Load(ctx *ServerContext) GruffError {
 	db := ctx.Arango.DB
 
-	loaded := Argument{}
 	col, err := ctx.Arango.CollectionFor(a)
 	if err != nil {
-		return loaded, err
+		return err
 	}
 
 	if a.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), &loaded)
+		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), a)
 		if dberr != nil {
-			return loaded, NewServerError(dberr.Error())
+			return NewServerError(dberr.Error())
 		}
 	} else if a.ID != "" {
 		var empty time.Time
@@ -226,19 +230,20 @@ func (a Argument) Load(ctx *ServerContext) (Argument, GruffError) {
 		}
 		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
-			return loaded, NewServerError(err.Error())
+			return NewServerError(err.Error())
 		}
 		defer cursor.Close()
 		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, &loaded)
+			_, err := cursor.ReadDocument(ctx.Context, a)
 			if err != nil {
-				return loaded, NewServerError(err.Error())
+				return NewServerError(err.Error())
 			}
 		}
 	} else {
-		return loaded, NewBusinessError("There is no key or id for this Argument.")
+		return NewBusinessError("There is no key or id for this Argument.")
 	}
-	return loaded, nil
+
+	return nil
 }
 
 // Business methods

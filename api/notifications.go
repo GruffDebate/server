@@ -1,12 +1,13 @@
 package api
 
 import (
-	"net/http"
+	_ "net/http"
 
-	"github.com/GruffDebate/server/gruff"
-	"github.com/labstack/echo"
+	_ "github.com/GruffDebate/server/gruff"
+	_ "github.com/labstack/echo"
 )
 
+/*
 func ListNotifications(c echo.Context) error {
 	ctx := ServerContext(c)
 	db := ctx.Database
@@ -50,3 +51,4 @@ func MarkNotificationViewed(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, notification)
 }
+*/

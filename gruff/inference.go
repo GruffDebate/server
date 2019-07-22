@@ -26,6 +26,10 @@ func (i Inference) ArangoID() string {
 	return fmt.Sprintf("%s/%s", i.CollectionName(), i.ArangoKey())
 }
 
+func (i Inference) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
 // Creator
 
 func (i *Inference) Create(ctx *ServerContext) GruffError {
@@ -34,7 +38,7 @@ func (i *Inference) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	i.PrepareForCreate()
+	i.PrepareForCreate(ctx.UserContext)
 
 	_, aerr := col.CreateDocument(ctx.Context, i)
 	if aerr != nil {

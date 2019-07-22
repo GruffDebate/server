@@ -1,12 +1,12 @@
 package api
 
 import (
-	"github.com/jinzhu/gorm"
+	arango "github.com/arangodb/go-driver"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
 
-func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
+func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	root := echo.New()
 
 	root.Use(middleware.Logger())
@@ -50,70 +50,64 @@ func SetUpRouter(test bool, db *gorm.DB) *echo.Echo {
 	private.GET("/users/:id", Get)
 	private.GET("/users/me", GetMe)
 	private.PUT("/users/me", UpdateMe)
-	private.PUT("/users/:id", Update)
+	//private.PUT("/users/:id", Update)
 	private.PUT("/users/password", ChangePassword)
 	public.PUT("/users/changePassword", ChangePassword)
-	private.DELETE("/users/:id", Delete)
+	//private.DELETE("/users/:id", Delete)
 
-	private.GET("/users/claims", ListClaimsUser)
+	//private.GET("/users/claims", ListClaimsUser)
 
 	public.GET("/arguments", List)
 	public.GET("/arguments/:id", GetArgument)
 	private.POST("/arguments", CreateArgument)
-	private.PUT("/arguments/:id", Update)
-	private.DELETE("/arguments/:id", Delete)
-	private.PUT("/arguments/:id/move/:newId/type/:type", MoveArgument)
+	//private.PUT("/arguments/:id", Update)
+	//private.DELETE("/arguments/:id", Delete)
+	//private.PUT("/arguments/:id/move/:newId/type/:type", MoveArgument)
 
-	private.POST("/arguments/:id/strength", SetScore)
-	private.PUT("/arguments/:id/strength", SetScore)
+	//private.POST("/arguments/:id/strength", SetScore)
+	//private.PUT("/arguments/:id/strength", SetScore)
 
-	public.GET("/contexts", ListContext)
+	//public.GET("/contexts", ListContext)
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
-	private.PUT("/contexts/:id", Update)
-	private.DELETE("/contexts/:id", Delete)
+	//private.PUT("/contexts/:id", Update)
+	//private.DELETE("/contexts/:id", Delete)
 
-	private.POST("/claims/:parentId/contexts/:id", AddAssociation)
-	private.DELETE("/claims/:parentId/contexts/:id", RemoveAssociation)
+	//private.POST("/claims/:parentId/contexts/:id", AddAssociation)
+	//private.DELETE("/claims/:parentId/contexts/:id", RemoveAssociation)
 
-	private.POST("/claims/:parentId/tags/:id", AddAssociation)
-	private.DELETE("/claims/:parentId/tags/:id", RemoveAssociation)
+	//private.POST("/claims/:parentId/tags/:id", AddAssociation)
+	//private.DELETE("/claims/:parentId/tags/:id", RemoveAssociation)
 
-	private.PUT("/claims/:parentId/contexts", ReplaceAssociation)
-	private.PUT("/claims/:parentId/tags", ReplaceAssociation)
+	//private.PUT("/claims/:parentId/contexts", ReplaceAssociation)
+	//private.PUT("/claims/:parentId/tags", ReplaceAssociation)
 
 	public.GET("/claims", ListClaims("new"))
 	public.GET("/claims/top", ListClaims("top"))
 	public.GET("/claims/:id", GetClaim)
 	private.POST("/claims", Create)
-	private.PUT("/claims/:id", Update)
-	private.DELETE("/claims/:id", Delete)
-	private.POST("/claims/:id/truth", SetScore)
-	private.PUT("/claims/:id/truth", SetScore)
+	//private.PUT("/claims/:id", Update)
+	//private.DELETE("/claims/:id", Delete)
+	//private.POST("/claims/:id/truth", SetScore)
+	//private.PUT("/claims/:id/truth", SetScore)
 
 	public.GET("/links", List)
 	public.GET("/links/:id", Get)
 	private.POST("/links", Create)
-	private.PUT("/links/:id", Update)
-	private.DELETE("/links/:id", Delete)
+	//private.PUT("/links/:id", Update)
+	//private.DELETE("/links/:id", Delete)
 
 	public.GET("/tags", List)
 	public.GET("/tags/:id", Get)
 	private.POST("/tags", Create)
-	private.PUT("/tags/:id", Update)
-	private.DELETE("/tags/:id", Delete)
+	//private.PUT("/tags/:id", Update)
+	//private.DELETE("/tags/:id", Delete)
 
-	public.GET("/tags/:id/claims", ListClaimsByTag)
+	//public.GET("/tags/:id/claims", ListClaimsByTag)
 
-	public.GET("/values", List)
-	public.GET("/values/:id", Get)
-	private.POST("/values", Create)
-	private.PUT("/values/:id", Update)
-	private.DELETE("/values/:id", Delete)
-
-	private.GET("/notifications", ListNotifications)
-	private.POST("/notifications/:id", MarkNotificationViewed)
-	private.PUT("/notifications/:id", MarkNotificationViewed)
+	//private.GET("/notifications", ListNotifications)
+	//private.POST("/notifications/:id", MarkNotificationViewed)
+	//private.PUT("/notifications/:id", MarkNotificationViewed)
 
 	return root
 }

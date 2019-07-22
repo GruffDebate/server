@@ -27,6 +27,10 @@ func (p PremiseEdge) ArangoID() string {
 	return fmt.Sprintf("%s/%s", p.CollectionName(), p.ArangoKey())
 }
 
+func (p PremiseEdge) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
 // Creator
 
 func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
@@ -35,7 +39,7 @@ func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	p.PrepareForCreate()
+	p.PrepareForCreate(ctx.UserContext)
 
 	_, aerr := col.CreateDocument(ctx.Context, p)
 	if aerr != nil {

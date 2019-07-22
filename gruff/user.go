@@ -1,8 +1,11 @@
 package gruff
 
 import (
+	"fmt"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -11,13 +14,33 @@ type User struct {
 	Username        string     `json:"username" settable:"false" sql:"unique_index;not null" valid:"length(3|50),matches(^[a-zA-Z0-9][a-zA-Z0-9-_]+$),required"`
 	Email           string     `json:"email" sql:"not null" valid:"email"`
 	Password        string     `json:"password,omitempty" sql:"-" valid:"length(5|64)"`
-	HashedPassword  []byte     `json:"-" sql:"hashed_password;not null" gorm:"size:32"`
+	HashedPassword  []byte     `json:"hashed_password"` // TODO: don't return this value via the API
 	Image           string     `json:"img,omitempty"`
 	Curator         bool       `json:"curator"`
 	Admin           bool       `json:"admin"`
 	URL             string     `json:"url,omitempty"`
 	EmailVerifiedAt *time.Time `json:"-" settable:"false"`
 }
+
+// ArangoObject interface
+
+func (u User) CollectionName() string {
+	return "users"
+}
+
+func (u User) ArangoKey() string {
+	return u.Key
+}
+
+func (u User) ArangoID() string {
+	return fmt.Sprintf("%s/%s", u.CollectionName(), u.ArangoKey())
+}
+
+func (u User) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
+// Validator
 
 func (u User) ValidateForCreate() GruffError {
 	err := u.ValidateField("Name")
@@ -40,6 +63,21 @@ func (u User) ValidateForCreate() GruffError {
 }
 
 func (u User) ValidateForUpdate() GruffError {
+	err := u.ValidateField("Name")
+	if err != nil {
+		return err
+	}
+	err = u.ValidateField("Email")
+	if err != nil {
+		return err
+	}
+	err = u.ValidateField("Username")
+	if err != nil {
+		return err
+	}
+	if u.Password != "" {
+		return NewBusinessError("Password: use the Change Password method to change the password;")
+	}
 	return nil
 }
 
@@ -68,4 +106,129 @@ func (u User) ValidateField(f string) GruffError {
 		}
 	}
 	return err
+}
+
+// Creator
+
+func (u *User) Create(ctx *ServerContext) GruffError {
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+
+	}
+
+	u.PrepareForCreate(ctx.UserContext)
+
+	if err := u.ValidateForCreate(); err != nil {
+		return err
+	}
+
+	password := u.Password
+	u.Password = ""
+	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	if _, dberr := col.CreateDocument(ctx.Context, u); dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+	return nil
+}
+
+// Updater
+
+func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+
+	}
+
+	if err := u.ValidateForUpdate(); err != nil {
+		return err
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, u.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return u.Load(ctx)
+}
+
+// Loader
+
+func (u *User) Load(ctx *ServerContext) GruffError {
+	db := ctx.Arango.DB
+
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+	}
+
+	var query string
+	bindVars := make(map[string]interface{})
+	if u.ArangoKey() != "" {
+		_, dberr := col.ReadDocument(ctx.Context, u.ArangoKey(), u)
+		if dberr != nil {
+			return NewServerError(dberr.Error())
+		}
+	} else {
+		if u.Username != "" {
+			bindVars["username"] = strings.ToLower(u.Username)
+			// TODO: unique index on lower(username)
+			query = fmt.Sprintf("FOR obj IN %s FILTER LOWER(obj.username) == @username LIMIT 1 RETURN obj", u.CollectionName())
+		} else if u.Email != "" {
+			bindVars["username"] = strings.ToLower(u.Email)
+			// TODO: unique index on lower(email)
+			query = fmt.Sprintf("FOR obj IN %s FILTER LOWER(obj.email) == @email LIMIT 1 RETURN obj", u.CollectionName())
+		} else {
+			return NewBusinessError("There is no value available to load this User.")
+		}
+
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		if err != nil {
+			return NewServerError(err.Error())
+		}
+		defer cursor.Close()
+		for cursor.HasMore() {
+			_, err := cursor.ReadDocument(ctx.Context, u)
+			if err != nil {
+				return NewServerError(err.Error())
+			}
+		}
+	}
+
+	return nil
+}
+
+// Business methods
+
+func (u *User) VerifyPassword(ctx *ServerContext, password string) (bool, GruffError) {
+	err := bcrypt.CompareHashAndPassword(u.HashedPassword, []byte(password))
+	if err != nil {
+		return false, NewBusinessError(err.Error())
+	}
+	return true, nil
+}
+
+func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) GruffError {
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+	}
+
+	if u.Password == "" {
+		return NewBusinessError("New Password: non zero value required;")
+	}
+	newPassword := u.Password
+	u.Password = ""
+	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+
+	update := map[string]interface{}{
+		"hashed_password": u.HashedPassword,
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, u.ArangoKey(), update); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return nil
 }

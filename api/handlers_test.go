@@ -4,42 +4,41 @@ import (
 	_ "errors"
 
 	"github.com/GruffDebate/server/gruff"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	arango "github.com/arangodb/go-driver"
 	"github.com/labstack/echo"
 )
 
 var CTX *gruff.ServerContext
-var INITDB *gorm.DB
-var TESTDB *gorm.DB
+var TEST_CLIENT arango.Client
+var TESTDB arango.Database
 
 var TESTTOKEN string
 var READ_ONLY bool = false
 
 func init() {
-	INITDB = gruff.InitTestDB()
+	TEST_CLIENT, TESTDB = gruff.InitTestDB()
 }
 
 func setup() {
-	TESTDB = INITDB.Begin()
+	//TESTDB = INITDB.Begin()
 
 	if CTX == nil {
 		CTX = &gruff.ServerContext{}
 	}
 
-	CTX.Database = TESTDB
+	CTX.Arango.DB = TESTDB
 }
 
 func teardown() {
-	TESTDB = TESTDB.Rollback()
+	//TESTDB = TESTDB.Rollback()
 }
 
 func startDBLog() {
-	TESTDB.LogMode(true)
+	//TESTDB.LogMode(true)
 }
 
 func stopDBLog() {
-	TESTDB.LogMode(false)
+	//TESTDB.LogMode(false)
 }
 
 func Router() *echo.Echo {

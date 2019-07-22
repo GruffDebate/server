@@ -1,16 +1,17 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"testing"
+	_ "encoding/json"
+	_ "fmt"
+	_ "net/http"
+	_ "testing"
 
-	"github.com/GruffDebate/server/gruff"
-	"github.com/badoux/goscraper"
-	"github.com/stretchr/testify/assert"
+	_ "github.com/GruffDebate/server/gruff"
+	_ "github.com/badoux/goscraper"
+	_ "github.com/stretchr/testify/assert"
 )
 
+/*
 func TestListContexts(t *testing.T) {
 	setup()
 	defer teardown()
@@ -59,6 +60,7 @@ func TestListContextsPagination(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.Code)
 }
 
+/*
 func TestGetContexts(t *testing.T) {
 	setup()
 	defer teardown()
@@ -279,3 +281,4 @@ func createContext() gruff.Context {
 
 	return c
 }
+*/

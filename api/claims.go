@@ -2,58 +2,24 @@ package api
 
 import (
 	"net/http"
-	"reflect"
-	"strings"
 
 	"github.com/GruffDebate/server/gruff"
-	"github.com/google/uuid"
 	"github.com/labstack/echo"
 )
 
 func GetClaim(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewNotFoundError(err.Error()))
-	}
+	id := c.Param("id")
 
+	// TODO: as of date
+	var err gruff.GruffError
 	claim := gruff.Claim{}
-
-	db = db.Preload("Links")
-	db = db.Preload("Contexts")
-	db = db.Preload("Values")
-	db = db.Preload("Tags")
-	db = db.Where("id = ?", id)
-	err = db.First(&claim).Error
+	claim.ID = id
+	err = claim.Load(ctx)
 	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddGruffError(ctx, c, err)
 	}
-
-	proArgs := []gruff.Argument{}
-	db = ctx.Database
-	db = db.Preload("Claim.Contexts")
-	db = db.Where("type = ?", gruff.ARGUMENT_FOR)
-	db = db.Where("target_claim_id = ?", id)
-	db = db.Scopes(gruff.OrderByBestArgument)
-	err = db.Find(&proArgs).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-	}
-	claim.Pro = proArgs
-
-	conArgs := []gruff.Argument{}
-	db = ctx.Database
-	db = db.Preload("Claim.Contexts")
-	db = db.Where("type = ?", gruff.ARGUMENT_AGAINST)
-	db = db.Where("target_claim_id = ?", id)
-	db = db.Scopes(gruff.OrderByBestArgument)
-	err = db.Find(&conArgs).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-	}
-	claim.Con = conArgs
 
 	return c.JSON(http.StatusOK, claim)
 }
@@ -61,32 +27,41 @@ func GetClaim(c echo.Context) error {
 func ListClaims(which string) func(c echo.Context) error {
 	return func(c echo.Context) error {
 		ctx := ServerContext(c)
-		db := ctx.Database
+		db := ctx.Arango.DB
 
-		claims := []gruff.Claim{}
-
-		db = DefaultJoins(ctx, c, db)
-		db = DefaultFetch(ctx, c, db, ctx.UserContext.ID)
-		if which == "top" {
-			db = db.Where("0 = (SELECT COUNT(*) FROM arguments WHERE claim_id = claims.id)")
+		var claim gruff.Claim
+		var claims []gruff.Claim
+		var params gruff.ArangoQueryParameters
+		var bindVars map[string]interface{}
+		var query string
+		switch which {
+		case "top":
+			query = claim.QueryForTopLevelClaims(params)
+		case "new":
+			query = gruff.DefaultListQuery(claim, claim.DefaultQueryParameters())
+		default:
+			return AddGruffError(ctx, c, gruff.NewNotFoundError("Not found"))
 		}
-		db = db.Order("claims.created_at DESC")
-		db = DefaultPaging(ctx, c, db)
 
-		err := db.Find(&claims).Error
+		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
 			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 		}
-
-		if ctx.Payload["ct"] != nil {
-			ctx.Payload["results"] = claims
-			return c.JSON(http.StatusOK, ctx.Payload)
+		defer cursor.Close()
+		for cursor.HasMore() {
+			claim := gruff.Claim{}
+			_, err := cursor.ReadDocument(ctx.Context, &claim)
+			if err != nil {
+				return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+			}
+			claims = append(claims, claim)
 		}
 
 		return c.JSON(http.StatusOK, claims)
 	}
 }
 
+/*
 func SetScore(c echo.Context) error {
 	ctx := ServerContext(c)
 	db := ctx.Database
@@ -177,3 +152,4 @@ func setScore(item interface{}, field string, score float64) {
 	f := v.FieldByName(strings.Title(field))
 	f.Set(reflect.ValueOf(score))
 }
+*/

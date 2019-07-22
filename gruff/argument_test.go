@@ -79,6 +79,10 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	setupDB()
 	defer teardownDB()
 
+	u := User{}
+	u.Key = "testuser"
+	CTX.UserContext = u
+
 	claim := Claim{
 		Title:       "Let's create a new claim",
 		Description: "Claims in general should be true or false",
@@ -102,12 +106,15 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 
-	saved, err := arg.Load(CTX)
+	saved := Argument{}
+	saved.ID = arg.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
 	assert.NotEmpty(t, saved.CreatedAt)
 	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), saved.CreatedByID)
 	assert.Nil(t, saved.DeletedAt)
 	assert.Equal(t, arg.Title, saved.Title)
 	assert.Equal(t, arg.Description, saved.Description)
@@ -120,11 +127,12 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	// Make sure a base claim was created
 	bc := Claim{}
 	bc.ID = arg.ClaimID
-	bc, err = bc.Load(CTX)
+	err = bc.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, bc.Key)
 	assert.NotEmpty(t, bc.CreatedAt)
 	assert.NotEmpty(t, bc.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), bc.CreatedByID)
 	assert.Nil(t, bc.DeletedAt)
 	assert.Equal(t, arg.Title, bc.Title)
 	assert.Equal(t, arg.Description, bc.Description)
@@ -139,6 +147,7 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	assert.NotEmpty(t, bce.Key)
 	assert.NotEmpty(t, bce.CreatedAt)
 	assert.Nil(t, bce.DeletedAt)
+	assert.Equal(t, u.ArangoID(), bce.CreatedByID)
 	assert.Equal(t, arg.ArangoID(), bce.From)
 	assert.Equal(t, bc.ArangoID(), bce.To)
 
@@ -146,6 +155,7 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, inf.Key)
 	assert.NotEmpty(t, inf.CreatedAt)
+	assert.Equal(t, u.ArangoID(), inf.CreatedByID)
 	assert.Nil(t, inf.DeletedAt)
 	assert.Equal(t, claim.ArangoID(), inf.From)
 	assert.Equal(t, arg.ArangoID(), inf.To)
@@ -154,6 +164,10 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 func TestCreateArgumentForClaimWithBase(t *testing.T) {
 	setupDB()
 	defer teardownDB()
+
+	u := User{}
+	u.Key = "testuser"
+	CTX.UserContext = u
 
 	claim := Claim{
 		Title:       "Let's create a new claim",
@@ -189,12 +203,15 @@ func TestCreateArgumentForClaimWithBase(t *testing.T) {
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 
-	saved, err := arg.Load(CTX)
+	saved := Argument{}
+	saved.ID = arg.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
 	assert.NotEmpty(t, saved.CreatedAt)
 	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), saved.CreatedByID)
 	assert.Nil(t, saved.DeletedAt)
 	assert.Equal(t, arg.Title, saved.Title)
 	assert.Equal(t, arg.Description, saved.Description)
@@ -210,6 +227,7 @@ func TestCreateArgumentForClaimWithBase(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, bce.Key)
 	assert.NotEmpty(t, bce.CreatedAt)
+	assert.Equal(t, u.ArangoID(), bce.CreatedByID)
 	assert.Nil(t, bce.DeletedAt)
 	assert.Equal(t, arg.ArangoID(), bce.From)
 	assert.Equal(t, baseClaim.ArangoID(), bce.To)
@@ -218,6 +236,7 @@ func TestCreateArgumentForClaimWithBase(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, inf.Key)
 	assert.NotEmpty(t, inf.CreatedAt)
+	assert.Equal(t, u.ArangoID(), inf.CreatedByID)
 	assert.Nil(t, inf.DeletedAt)
 	assert.Equal(t, claim.ArangoID(), inf.From)
 	assert.Equal(t, arg.ArangoID(), inf.To)
@@ -226,6 +245,10 @@ func TestCreateArgumentForClaimWithBase(t *testing.T) {
 func TestCreateArgumentForArgument(t *testing.T) {
 	setupDB()
 	defer teardownDB()
+
+	u := User{}
+	u.Key = "testuser"
+	CTX.UserContext = u
 
 	claim := Claim{
 		Title:       "Let's create a new claim",
@@ -262,12 +285,15 @@ func TestCreateArgumentForArgument(t *testing.T) {
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 
-	saved, err := arg.Load(CTX)
+	saved := Argument{}
+	saved.ID = arg.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
 	assert.NotEmpty(t, saved.CreatedAt)
 	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), saved.CreatedByID)
 	assert.Nil(t, saved.DeletedAt)
 	assert.Equal(t, arg.Title, saved.Title)
 	assert.Equal(t, arg.Description, saved.Description)
@@ -281,11 +307,12 @@ func TestCreateArgumentForArgument(t *testing.T) {
 	// Make sure a base claim was created
 	bc := Claim{}
 	bc.ID = arg.ClaimID
-	bc, err = bc.Load(CTX)
+	err = bc.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, bc.Key)
 	assert.NotEmpty(t, bc.CreatedAt)
 	assert.NotEmpty(t, bc.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), bc.CreatedByID)
 	assert.Nil(t, bc.DeletedAt)
 	assert.Equal(t, arg.Title, bc.Title)
 	assert.Equal(t, arg.Description, bc.Description)
@@ -300,6 +327,7 @@ func TestCreateArgumentForArgument(t *testing.T) {
 	assert.NotEmpty(t, bce.Key)
 	assert.NotEmpty(t, bce.CreatedAt)
 	assert.Nil(t, bce.DeletedAt)
+	assert.Equal(t, u.ArangoID(), bce.CreatedByID)
 	assert.Equal(t, arg.ArangoID(), bce.From)
 	assert.Equal(t, bc.ArangoID(), bce.To)
 
@@ -308,6 +336,7 @@ func TestCreateArgumentForArgument(t *testing.T) {
 	assert.NotEmpty(t, inf.Key)
 	assert.NotEmpty(t, inf.CreatedAt)
 	assert.Nil(t, inf.DeletedAt)
+	assert.Equal(t, u.ArangoID(), inf.CreatedByID)
 	assert.Equal(t, targarg.ArangoID(), inf.From)
 	assert.Equal(t, arg.ArangoID(), inf.To)
 }
@@ -364,53 +393,65 @@ func TestLoadArgumentAtDate(t *testing.T) {
 
 	lookup := Argument{}
 	lookup.ID = arg.ID
-	result, err := lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
 
 	lookup.CreatedAt = time.Now().Add(-1 * time.Minute)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
-	thirdCreatedAt := result.CreatedAt
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
+	thirdCreatedAt := lookup.CreatedAt
 
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, secondKey, result.ArangoKey())
-	secondCreatedAt := result.CreatedAt
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, secondKey, lookup.ArangoKey())
+	secondCreatedAt := lookup.CreatedAt
 
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, firstKey, result.ArangoKey())
-	firstCreatedAt := result.CreatedAt
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, firstKey, lookup.ArangoKey())
+	firstCreatedAt := lookup.CreatedAt
 
 	// TODO: Throw a NotFoundError?
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Equal(t, "", result.ArangoKey())
+	assert.Equal(t, "", lookup.ArangoKey())
 
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = firstCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, firstKey, result.ArangoKey())
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, firstKey, lookup.ArangoKey())
 
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = secondCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, secondKey, result.ArangoKey())
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, secondKey, lookup.ArangoKey())
 
+	lookup = Argument{}
+	lookup.ID = arg.ID
 	lookup.CreatedAt = thirdCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
 }

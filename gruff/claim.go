@@ -67,6 +67,10 @@ func (c Claim) ArangoID() string {
 	return fmt.Sprintf("%s/%s", c.CollectionName(), c.ArangoKey())
 }
 
+func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
 // Validator
 
 func (c Claim) ValidateForCreate() GruffError {
@@ -91,8 +95,7 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	}
 
 	// TODO: validate for create
-
-	c.PrepareForCreate()
+	c.PrepareForCreate(ctx.UserContext)
 
 	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
 		return NewServerError(dberr.Error())
@@ -100,23 +103,24 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
+// Loader
+
 // If the Claim object has a key, that exact Claim will be loaded
 // Otherwise, Load will look for Claims matching the ID
 // If CreatedAt is a non-blank value, it will load the Claim active at that time (if any)
 // Otherwise, it will return the current active (undeleted) version.
-func (c Claim) Load(ctx *ServerContext) (Claim, GruffError) {
+func (c *Claim) Load(ctx *ServerContext) GruffError {
 	db := ctx.Arango.DB
 
-	loaded := Claim{}
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
-		return loaded, err
+		return err
 	}
 
 	if c.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), &loaded)
+		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), c)
 		if dberr != nil {
-			return loaded, NewServerError(dberr.Error())
+			return NewServerError(dberr.Error())
 		}
 	} else if c.ID != "" {
 		var empty time.Time
@@ -132,19 +136,20 @@ func (c Claim) Load(ctx *ServerContext) (Claim, GruffError) {
 		}
 		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
-			return loaded, NewServerError(err.Error())
+			return NewServerError(err.Error())
 		}
 		defer cursor.Close()
 		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, &loaded)
+			_, err := cursor.ReadDocument(ctx.Context, c)
 			if err != nil {
-				return loaded, NewServerError(err.Error())
+				return NewServerError(err.Error())
 			}
 		}
 	} else {
-		return loaded, NewBusinessError("There is no key or id for this Claim.")
+		return NewBusinessError("There is no key or id for this Claim.")
 	}
-	return loaded, nil
+
+	return nil
 }
 
 // Versioner
@@ -152,7 +157,9 @@ func (c Claim) Load(ctx *ServerContext) (Claim, GruffError) {
 func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 	var newVersion Claim
 
-	oldVersion, err := c.Load(ctx)
+	oldVersion := Claim{}
+	oldVersion.ID = c.ID
+	err := oldVersion.Load(ctx)
 	if err != nil {
 		return newVersion, err
 	}
@@ -163,7 +170,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 		return newVersion, err
 	}
 
-	c.PrepareForCreate()
+	c.PrepareForCreate(ctx.UserContext)
 	if err := c.Create(ctx); err != nil {
 		ctx.Rollback()
 		return newVersion, err
@@ -653,3 +660,11 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 	}
 }
 */
+
+// Queries
+
+func (c Claim) QueryForTopLevelClaims(params ArangoQueryParameters) string {
+	params = c.DefaultQueryParameters().Merge(params)
+	query := "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0"
+	return params.Apply(query)
+}

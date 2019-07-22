@@ -1,13 +1,14 @@
 package api
 
 import (
-	"net/http"
+	_ "net/http"
 
-	"github.com/GruffDebate/server/gruff"
-	"github.com/badoux/goscraper"
-	"github.com/labstack/echo"
+	_ "github.com/GruffDebate/server/gruff"
+	_ "github.com/badoux/goscraper"
+	_ "github.com/labstack/echo"
 )
 
+/*
 func ListContext(c echo.Context) error {
 	ctx := ServerContext(c)
 	db := ctx.Database
@@ -42,3 +43,4 @@ func ListContext(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, contexts)
 }
+*/

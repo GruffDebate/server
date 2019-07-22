@@ -11,7 +11,7 @@ import (
 )
 
 type jwtCustomClaims struct {
-	ID       uint64 `json:"id"`
+	Key      string `json:"key"`
 	Name     string `json:"name"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
@@ -29,7 +29,6 @@ type customPassword struct {
 
 func SignUp(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
 	u := new(gruff.User)
 
@@ -37,12 +36,8 @@ func SignUp(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	password := u.Password
-	u.Password = ""
-	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
-	if err := db.Create(u).Error; err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	if err := u.Create(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
 	}
 
 	t, err := TokenForUser(*u)
@@ -56,7 +51,6 @@ func SignUp(c echo.Context) error {
 
 func SignIn(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
 	u := gruff.User{}
 	if err := c.Bind(&u); err != nil {
@@ -65,14 +59,8 @@ func SignIn(c echo.Context) error {
 
 	user := gruff.User{}
 
-	if u.Email != "" {
-		if err := db.Where("email = ?", u.Email).Find(&user).Error; err != nil {
-			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
-		}
-	} else if u.Username != "" {
-		if err := db.Where("username = ?", u.Username).Find(&user).Error; err != nil {
-			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
-		}
+	if err := u.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
 
 	if ok, _ := verifyPassword(user, u.Password); ok {
@@ -91,7 +79,7 @@ func SignIn(c echo.Context) error {
 
 func TokenForUser(user gruff.User) (string, error) {
 	claims := &jwtCustomClaims{
-		user.ID,
+		user.Key,
 		user.Name,
 		user.Username,
 		user.Email,
@@ -115,44 +103,33 @@ func verifyPassword(user gruff.User, password string) (bool, error) {
 
 func ChangePassword(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
-	u := new(customPassword)
-	if err := c.Bind(&u); err != nil {
+	cp := new(customPassword)
+	if err := c.Bind(&cp); err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	user := gruff.User{}
-	err := db.Where("id = ?", ctx.UserContext.ID).Find(&user).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	user.Key = ctx.UserContext.Key
+	if err := user.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
 	}
 
-	if ok, _ := verifyPassword(user, u.OldPassword); ok {
-		user.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(u.NewPassword), bcrypt.DefaultCost)
-
-		if err := db.Save(user).Error; err != nil {
-			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-		}
-
-		return c.JSON(http.StatusOK, user)
+	user.Password = cp.NewPassword
+	if err := user.ChangePassword(ctx, cp.OldPassword); err != nil {
+		return AddGruffError(ctx, c, err)
 	}
 
-	return AddGruffError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	return c.JSON(http.StatusOK, user)
 }
 
 func GetMe(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
 	user := gruff.User{}
-
-	db = BasicJoins(ctx, c, db)
-	db = db.Where("id = ?", ctx.UserContext.ID)
-
-	err := db.Find(&user).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	user.Key = ctx.UserContext.Key
+	if err := user.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -160,33 +137,26 @@ func GetMe(c echo.Context) error {
 
 func UpdateMe(c echo.Context) error {
 	ctx := ServerContext(c)
-	db := ctx.Database
 
 	user := gruff.User{}
+	user.Key = ctx.UserContext.Key
+	if err := user.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
 
-	db = db.Where("id = ?", ctx.UserContext.ID)
-	err := db.Find(&user).Error
-	if err != nil {
+	updates := map[string]interface{}{}
+	if err := c.Bind(&updates); err != nil {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	err = BasicValidationForUpdate(ctx, c, &user, []string{})
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-	}
-
-	if err := c.Bind(&user); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-	}
-
-	err = db.Save(&user).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	if err := user.Update(ctx, updates); err != nil {
+		return AddGruffError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, user)
 }
 
+/*
 func ListClaimsUser(c echo.Context) error {
 	ctx := ServerContext(c)
 	db := ctx.Database
@@ -209,3 +179,4 @@ func ListClaimsUser(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, claims)
 }
+*/

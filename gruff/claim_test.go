@@ -12,6 +12,10 @@ func TestCreateClaim(t *testing.T) {
 	setupDB()
 	defer teardownDB()
 
+	u := User{}
+	u.Key = "testuser"
+	CTX.UserContext = u
+
 	claim := Claim{
 		Title:        "Let's create a new claim",
 		Description:  "Claims in general should be true or false",
@@ -23,18 +27,23 @@ func TestCreateClaim(t *testing.T) {
 		PremiseRule:  PREMISE_RULE_ALL,
 	}
 
-	saved, err := claim.Load(CTX)
+	saved := Claim{}
+	saved.ID = claim.ID
+	err := saved.Load(CTX)
 	assert.Error(t, err)
 	assert.Empty(t, saved.Key)
 
 	err = claim.Create(CTX)
 	assert.NoError(t, err)
-	saved, err = claim.Load(CTX)
+	saved = Claim{}
+	saved.ID = claim.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
 	assert.NotEmpty(t, saved.CreatedAt)
 	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Equal(t, u.ArangoID(), saved.CreatedByID)
 	assert.Nil(t, saved.DeletedAt)
 	assert.Equal(t, claim.Title, saved.Title)
 	assert.Equal(t, claim.Description, saved.Description)
@@ -75,7 +84,9 @@ func TestClaimAddPremise(t *testing.T) {
 
 	err := topClaim.Create(CTX)
 	assert.NoError(t, err)
-	saved, err := topClaim.Load(CTX)
+	saved := Claim{}
+	saved.ID = topClaim.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
@@ -85,7 +96,9 @@ func TestClaimAddPremise(t *testing.T) {
 
 	err = topClaim.AddPremise(CTX, &premiseClaim1)
 	assert.NoError(t, err)
-	saved, err = premiseClaim1.Load(CTX)
+	saved = Claim{}
+	saved.ID = premiseClaim1.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
@@ -112,7 +125,8 @@ func TestClaimAddPremise(t *testing.T) {
 
 	err = topClaim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
-	saved, err = premiseClaim2.Load(CTX)
+	saved.ID = premiseClaim2.ID
+	err = saved.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, saved.Key)
 	assert.NotEmpty(t, saved.ID)
@@ -277,7 +291,7 @@ func TestClaimVersion(t *testing.T) {
 	c, err := claim.Version(CTX)
 	assert.NoError(t, err)
 
-	c, err = c.Load(CTX)
+	err = c.Load(CTX)
 	assert.NoError(t, err)
 	assert.Nil(t, c.DeletedAt)
 	assert.Equal(t, "New Title", c.Title)
@@ -285,7 +299,7 @@ func TestClaimVersion(t *testing.T) {
 
 	origClaim := Claim{}
 	origClaim.Key = origClaimKey
-	origClaim, err = origClaim.Load(CTX)
+	err = origClaim.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, origClaim.DeletedAt)
 	assert.Equal(t, "I dare you to doubt me", origClaim.Title)
@@ -394,55 +408,69 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	lookup := Claim{}
 	lookup.ID = claim.ID
-	result, err := lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = time.Now().Add(-1 * time.Minute)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
-	thirdCreatedAt := result.CreatedAt
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
+	thirdCreatedAt := lookup.CreatedAt
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, secondKey, result.ArangoKey())
-	secondCreatedAt := result.CreatedAt
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, secondKey, lookup.ArangoKey())
+	secondCreatedAt := lookup.CreatedAt
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, firstKey, result.ArangoKey())
-	firstCreatedAt := result.CreatedAt
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, firstKey, lookup.ArangoKey())
+	firstCreatedAt := lookup.CreatedAt
 
 	// TODO: Throw a NotFoundError?
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Equal(t, "", result.ArangoKey())
+	assert.Equal(t, "", lookup.ArangoKey())
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = firstCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, firstKey, result.ArangoKey())
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, firstKey, lookup.ArangoKey())
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = secondCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.NotNil(t, result.DeletedAt)
-	assert.Equal(t, secondKey, result.ArangoKey())
+	assert.NotNil(t, lookup.DeletedAt)
+	assert.Equal(t, secondKey, lookup.ArangoKey())
 
+	lookup = Claim{}
+	lookup.ID = claim.ID
 	lookup.CreatedAt = thirdCreatedAt
-	result, err = lookup.Load(CTX)
+	err = lookup.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, result.DeletedAt)
-	assert.Equal(t, thirdKey, result.ArangoKey())
+	assert.Nil(t, lookup.DeletedAt)
+	assert.Equal(t, thirdKey, lookup.ArangoKey())
 }
 
 func TestClaimReorderPremise(t *testing.T) {
@@ -690,4 +718,28 @@ func TestClaimReorderPremise(t *testing.T) {
 	assert.Equal(t, 2, edges[1].Order)
 	assert.Equal(t, 3, edges[2].Order)
 	assert.Equal(t, 4, edges[3].Order)
+}
+
+func TestClaimQueryForTopLevelClaims(t *testing.T) {
+	params := ArangoQueryParameters{}
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj.start DESC LIMIT 0, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Return = support.StringPtr("obj._id")
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj.start DESC LIMIT 0, 20 RETURN obj._id", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Return = support.StringPtr("{claim: obj, count: bcCount[0]}")
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj.start DESC LIMIT 0, 20 RETURN {claim: obj, count: bcCount[0]}", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Return = nil
+	params.Sort = support.StringPtr("obj._id")
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj._id LIMIT 0, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Offset = support.IntPtr(5)
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj._id LIMIT 5, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Limit = support.IntPtr(10)
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj._id LIMIT 5, 10 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+
+	params.Offset = nil
+	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj._id LIMIT 0, 10 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
 }

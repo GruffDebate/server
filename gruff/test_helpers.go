@@ -1,12 +1,10 @@
 package gruff
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	arango "github.com/arangodb/go-driver"
-	"github.com/arangodb/go-driver/http"
 )
 
 func InitTestDB() (arango.Client, arango.Database) {
@@ -28,8 +26,7 @@ func InitTestDB() (arango.Client, arango.Database) {
 		fmt.Println("No error should happen when connecting to test database, but got:", err)
 	}
 
-	ctx := context.Background()
-	db, err := client.Database(ctx, os.Getenv("ARANGO_DB"))
+	db, err := OpenArangoDatabase(client)
 	if err != nil {
 		fmt.Println("Error opening the test database:", err)
 	}
@@ -40,27 +37,14 @@ func InitTestDB() (arango.Client, arango.Database) {
 }
 
 func OpenTestConnection() (arango.Client, error) {
-	conn, err := http.NewConnection(http.ConnectionConfig{
-		Endpoints: []string{os.Getenv("ARANGO_ENDPOINT")},
-	})
-	if err != nil {
-		return nil, err
-	}
-	conn, err = conn.SetAuthentication(arango.BasicAuthentication(os.Getenv("ARANGO_USER"), os.Getenv("ARANGO_PASS")))
-	if err != nil {
-		return nil, err
-	}
-	db, err := arango.NewClient(arango.ClientConfig{
-		Connection: conn,
-	})
-
-	return db, err
+	return OpenArangoConnection()
 }
 
 func cleanData(db arango.Database) {
 	ctx := ArangoContext{DB: db}
 
 	models := []ArangoObject{
+		User{},
 		Inference{},
 		BaseClaimEdge{},
 		PremiseEdge{},

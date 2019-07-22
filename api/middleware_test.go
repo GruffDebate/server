@@ -43,7 +43,7 @@ func createTestUser() gruff.User {
 		Username: "john.doe",
 		Email:    "john.doe@gruff.com",
 	}
-	TESTDB.Create(&u)
+	u.Create(CTX)
 	return u
 }
 

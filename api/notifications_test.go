@@ -1,16 +1,17 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"testing"
+	_ "encoding/json"
+	_ "fmt"
+	_ "net/http"
+	_ "testing"
 
-	"github.com/GruffDebate/server/gruff"
-	"github.com/GruffDebate/server/support"
-	"github.com/stretchr/testify/assert"
+	_ "github.com/GruffDebate/server/gruff"
+	_ "github.com/GruffDebate/server/support"
+	_ "github.com/stretchr/testify/assert"
 )
 
+/*
 func TestListNotifications(t *testing.T) {
 	setup()
 	defer teardown()
@@ -81,3 +82,4 @@ func TestMarkNotificationViewed(t *testing.T) {
 	TESTDB.First(&n5)
 	assert.True(t, n5.Viewed)
 }
+*/

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,13 +10,14 @@ import (
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/GruffDebate/server/support"
+	arango "github.com/arangodb/go-driver"
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo"
 	uuid "github.com/satori/go.uuid"
 )
 
-var RW_DB_POOL *gorm.DB
+var ARANGODB_CLIENT arango.Client
+var ARANGODB_POOL arango.Database
 
 const (
 	HeaderReferrerPolicy = "Referrer-Policy"
@@ -41,10 +43,11 @@ func Secure(headers ...securityMiddlewareOption) echo.MiddlewareFunc {
 	}
 }
 
-func DBMiddleware(db *gorm.DB) echo.MiddlewareFunc {
+func DBMiddleware(db arango.Database) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			c.Set("Database", db)
+			arangoCtx := gruff.ArangoContext{Context: context.Background(), DB: db}
+			c.Set("Arango", arangoCtx)
 
 			return next(c)
 		}
@@ -91,7 +94,7 @@ func SessionUser(next echo.HandlerFunc) echo.HandlerFunc {
 
 			if token.Valid {
 				if claims, ok := token.Claims.(*jwtCustomClaims); ok {
-					user.ID = claims.ID
+					user.Key = claims.Key
 					user.Name = claims.Name
 					user.Email = claims.Email
 					user.Username = claims.Username
@@ -99,13 +102,13 @@ func SessionUser(next echo.HandlerFunc) echo.HandlerFunc {
 					user.Curator = claims.Curator
 					user.Admin = claims.Admin
 				} else {
-					user.ID = 0
+					user.Key = ""
 				}
 			} else {
 				return echo.NewHTTPError(http.StatusUnauthorized)
 			}
 		} else {
-			user.ID = 0
+			user.Key = ""
 		}
 
 		c.Set("UserContext", user)
@@ -195,6 +198,7 @@ func ServerContext(c echo.Context) *gruff.ServerContext {
 	var tType reflect.Type
 	var ParentType reflect.Type
 	var user gruff.User
+	var arango gruff.ArangoContext
 
 	if c.Get("UserContext") != nil {
 		user = c.Get("UserContext").(gruff.User)
@@ -208,13 +212,19 @@ func ServerContext(c echo.Context) *gruff.ServerContext {
 		ParentType = c.Get("ParentType").(reflect.Type)
 	}
 
+	if c.Get("Arango") != nil {
+		arango = c.Get("Arango").(gruff.ArangoContext)
+	}
+
 	return &gruff.ServerContext{
+		Context:     context.Background(),
 		RequestID:   c.Get("RequestID").(string),
-		Database:    c.Get("Database").(*gorm.DB),
+		Arango:      arango,
 		UserContext: user,
 		Test:        false,
 		Type:        tType,
 		ParentType:  ParentType,
 		Payload:     make(map[string]interface{}),
+		// TODO: what about Request, AppName, Method, etc.?
 	}
 }

@@ -23,9 +23,10 @@ func (e Edge) ValidateField(f string) GruffError {
 	return ValidateStructField(e, f)
 }
 
-func (e *Edge) PrepareForCreate() {
+func (e *Edge) PrepareForCreate(u User) {
 	e.Key = uuid.New().String()
 	e.CreatedAt = time.Now()
+	e.CreatedByID = u.ArangoID()
 	return
 }
 

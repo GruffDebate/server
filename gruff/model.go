@@ -8,14 +8,21 @@ import (
 	"time"
 
 	"github.com/GruffDebate/server/support"
+	"github.com/google/uuid"
 )
 
-// TODO: Update this for ArangoDB
 type Model struct {
-	ID        uint64     `json:"id"`
-	CreatedAt time.Time  `json:"-"`
-	UpdatedAt time.Time  `json:"-"`
-	DeletedAt *time.Time `json:"-" settable:"false"`
+	Key       string     `json:"_key"`
+	CreatedAt time.Time  `json:"start"`
+	UpdatedAt time.Time  `json:"mod"`
+	DeletedAt *time.Time `json:"end" settable:"false"`
+}
+
+func (m *Model) PrepareForCreate(u User) {
+	m.Key = uuid.New().String()
+	m.CreatedAt = time.Now()
+	m.UpdatedAt = time.Now()
+	return
 }
 
 type ReplaceMany struct {
