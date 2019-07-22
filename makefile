@@ -3,6 +3,3 @@ up:
 
 test:
 	go test ./gruff ./api -v
-
-up2:
-	up start --address :8080

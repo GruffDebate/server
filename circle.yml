@@ -1,57 +1,31 @@
-machine:
-  pre:
-    - sudo service postgresql stop
-    - sudo apt-get purge -y postgresql*
-    - sudo apt-get update
-    - sudo apt-get install postgresql
-    - sudo service postgresql start
-    - sudo su - postgres -c "echo \"create user ubuntu with password 'ubuntu';\" | psql"
-    - sudo su - postgres -c "echo \"alter user ubuntu with superuser;\" | psql"
-    - sudo su - postgres -c "echo \"create database gruff_test;\" | psql"
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.12
+      - image: arangodb:3.4.7
+        environment:
+          ARANGO_ROOT_PASSWORD: gruff_test
+    working_directory: /go/src/github.com/GruffDebate/server
 
-database:
-  override:
-    - go get bitbucket.org/liamstask/goose/cmd/goose
-    - |
-      if [[ $CIRCLE_BRANCH = 'dev' ]]; then
-        goose -env development up
-      fi
-      if [[ $CIRCLE_BRANCH = 'qa' ]]; then
-        goose -env qa up
-      fi
-      if [[ $CIRCLE_BRANCH = 'master' ]]; then
-        goose -env production up
-      fi
+    environment:
+      TEST_RESULTS: /tmp/test-results
+    
+    steps: 
+      - checkout 
+      - run: mkdir -p $TEST_RESULTS 
 
-test:
-  override:
-    - go test ./gruff ./api ./support -v
+      - restore_cache:
+        keys:
+          - v1-pkg-cache
 
-deployment:
-  master:
-    branch: master
-    commands:
-      - sudo chown -R $(whoami) /usr/local/bin/
-      - curl -sf https://up.apex.sh/install | sh
-      - npm i -g up
-      - up version
-      - up upgrade
-      - up deploy
-  qa:
-    branch: qa
-    commands:
-      - sudo chown -R $(whoami) /usr/local/bin/
-      - curl -sf https://up.apex.sh/install | sh
-      - npm i -g up
-      - up version
-      - up upgrade
-      - up deploy
-  dev:
-    branch: dev
-    commands:
-      - sudo chown -R $(whoami) /usr/local/bin/
-      - curl -sf https://up.apex.sh/install | sh
-      - npm i -g up
-      - up version
-      - up upgrade
-      - up deploy
+      - run:
+          name: Waiting for Aragondb to be ready
+          command: |
+            for i in `seq 1 10`;
+            do
+              nc -z localhost 8529 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for Aragondb && exit 1

@@ -11,12 +11,10 @@ import (
 )
 
 func main() {
-
 	config.Init()
-	api.RW_DB_POOL = config.InitDB()
-	api.RW_DB_POOL.LogMode(true)
+	api.ARANGODB_POOL = config.InitDB()
 
-	root := api.SetUpRouter(false, api.RW_DB_POOL)
+	root := api.SetUpRouter(false, api.ARANGODB_POOL)
 	addr := ":" + os.Getenv("PORT")
 
 	go func() {
