@@ -62,21 +62,26 @@ func (u User) ValidateForCreate() GruffError {
 	return nil
 }
 
-func (u User) ValidateForUpdate() GruffError {
-	err := u.ValidateField("Name")
-	if err != nil {
-		return err
+func (u User) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	updated := User{
+		Name:     updates["name"].(string),
+		Email:    updates["email"].(string),
+		Username: updates["username"].(string),
 	}
-	err = u.ValidateField("Email")
-	if err != nil {
-		return err
+	if updated.Name != "" {
+		if err := updated.ValidateField("Name"); err != nil {
+			return err
+		}
 	}
-	err = u.ValidateField("Username")
-	if err != nil {
-		return err
+	if updated.Email != "" {
+		if err := updated.ValidateField("Email"); err != nil {
+			return err
+		}
 	}
-	if u.Password != "" {
-		return NewBusinessError("Password: use the Change Password method to change the password;")
+	if updated.Username != "" {
+		if err := updated.ValidateField("Username"); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -142,7 +147,7 @@ func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffE
 
 	}
 
-	if err := u.ValidateForUpdate(); err != nil {
+	if err := u.ValidateForUpdate(updates); err != nil {
 		return err
 	}
 

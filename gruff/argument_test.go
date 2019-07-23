@@ -44,35 +44,33 @@ func TestArgumentValidateForCreate(t *testing.T) {
 
 func TestArgumentValidateForUpdate(t *testing.T) {
 	a := Argument{}
+	updates := map[string]interface{}{}
 
-	assert.Equal(t, "title: non zero value required;", a.ValidateForUpdate().Error())
+	assert.Equal(t, "title: non zero value required;", a.ValidateForUpdate(updates).Error())
 
-	a.Title = "A"
-	assert.Equal(t, "title: A does not validate as length(3|1000);", a.ValidateForUpdate().Error())
+	updates["title"] = "A"
+	assert.Equal(t, "title: A does not validate as length(3|1000);", a.ValidateForUpdate(updates).Error())
 
-	a.Title = "This is a real argument"
-	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate().Error())
+	updates["title"] = "This is a real argument"
+	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate(updates).Error())
 
-	a.Description = "D"
-	assert.Equal(t, "desc: D does not validate as length(3|4000);", a.ValidateForUpdate().Error())
+	updates["desc"] = "D"
+	assert.Equal(t, "desc: D does not validate as length(3|4000);", a.ValidateForUpdate(updates).Error())
 
-	a.Description = "This is a real description"
-	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate().Error())
+	updates["desc"] = "This is a real description"
+	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate(updates).Error())
 
-	a.ClaimID = ""
-	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate().Error())
+	updates["claimId"] = ""
+	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate(updates).Error())
 
-	a.ClaimID = uuid.New().String()
-	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForUpdate().Error())
+	updates["claimId"] = uuid.New().String()
+	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForUpdate(updates).Error())
 
-	a.TargetClaimID = support.StringPtr(uuid.New().String())
-	assert.NoError(t, a.ValidateForUpdate())
+	updates["targetClaimId"] = uuid.New().String()
+	assert.NoError(t, a.ValidateForUpdate(updates))
 
-	a.TargetClaimID = nil
-	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForUpdate().Error())
-
-	a.TargetClaimID = support.StringPtr(uuid.New().String())
-	assert.Nil(t, a.ValidateForUpdate())
+	updates["targetClaimId"] = nil
+	assert.Equal(t, "An Argument must have a target Claim or target Argument ID", a.ValidateForUpdate(updates).Error())
 }
 
 func TestCreateArgumentForClaimNoBase(t *testing.T) {

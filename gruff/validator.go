@@ -9,7 +9,7 @@ import (
 
 type Validator interface {
 	ValidateForCreate() GruffError
-	ValidateForUpdate() GruffError
+	ValidateForUpdate(map[string]interface{}) GruffError
 	ValidateField(string) GruffError
 }
 

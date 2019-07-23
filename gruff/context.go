@@ -48,7 +48,10 @@ func (c Context) ValidateForCreate() GruffError {
 	return ValidateStruct(c)
 }
 
-func (c Context) ValidateForUpdate() GruffError {
+func (c Context) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
+		return err
+	}
 	return c.ValidateForCreate()
 }
 

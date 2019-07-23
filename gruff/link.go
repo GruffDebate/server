@@ -17,7 +17,10 @@ func (l Link) ValidateForCreate() GruffError {
 	return ValidateStruct(l)
 }
 
-func (l Link) ValidateForUpdate() GruffError {
+func (l Link) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if err := SetJsonValuesOnStruct(&l, updates); err != nil {
+		return err
+	}
 	return l.ValidateForCreate()
 }
 

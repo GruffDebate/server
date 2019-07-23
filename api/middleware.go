@@ -187,9 +187,6 @@ func StringToType(typeName string) (t reflect.Type) {
 	case "links":
 		var m gruff.Link
 		t = reflect.TypeOf(m)
-	case "tags":
-		var m gruff.Tag
-		t = reflect.TypeOf(m)
 	}
 	return
 }

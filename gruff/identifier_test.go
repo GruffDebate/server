@@ -7,7 +7,6 @@ import (
 )
 
 func TestIsIdentifier(t *testing.T) {
-	assert.False(t, IsIdentifier(reflect.TypeOf(Tag{})))
 	assert.False(t, IsIdentifier(reflect.TypeOf(User{})))
 	assert.False(t, IsIdentifier(reflect.TypeOf(Context{})))
 	assert.False(t, IsIdentifier(reflect.TypeOf(ClaimOpinion{})))

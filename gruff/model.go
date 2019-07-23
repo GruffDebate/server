@@ -180,6 +180,15 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffErr
 	return NewNotFoundError("field not found", data)
 }
 
+func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) GruffError {
+	for key, value := range values {
+		if err := SetByJsonTag(item, key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func SetKey(item interface{}, key string) GruffError {
 	v := reflect.ValueOf(item)
 	if v.Kind() == reflect.Ptr {

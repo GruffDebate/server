@@ -102,7 +102,10 @@ func (a Argument) ValidateForCreate() GruffError {
 	return nil
 }
 
-func (a Argument) ValidateForUpdate() GruffError {
+func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if err := SetJsonValuesOnStruct(&a, updates); err != nil {
+		return err
+	}
 	return a.ValidateForCreate()
 }
 

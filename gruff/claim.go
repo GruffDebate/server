@@ -50,7 +50,6 @@ type Claim struct {
 	Links        []Link     `json:"links,omitempty"`
 	Contexts     []Context  `json:"contexts,omitempty"`
 	ContextIDs   []uint64   `json:"contextIds,omitempty"`
-	Tags         []Tag      `json:"tags,omitempty"`
 }
 
 // ArangoObject interface
@@ -77,7 +76,10 @@ func (c Claim) ValidateForCreate() GruffError {
 	return ValidateStruct(c)
 }
 
-func (c Claim) ValidateForUpdate() GruffError {
+func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
+		return err
+	}
 	return c.ValidateForCreate()
 }
 
@@ -152,28 +154,49 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// Versioner
+// Updater
 
-func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
-	var newVersion Claim
+func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	if err := c.ValidateForUpdate(updates); err != nil {
+		return err
+	}
 
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+
+	}
+
+	// When a Claim is updated, it creates a new version
+	if err := c.version(ctx); err != nil {
+		return err
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, c.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return c.Load(ctx)
+}
+
+func (c *Claim) version(ctx *ServerContext) GruffError {
 	oldVersion := Claim{}
 	oldVersion.ID = c.ID
 	err := oldVersion.Load(ctx)
 	if err != nil {
-		return newVersion, err
+		return err
 	}
 
 	// This should delete all the old edges, too
 	if err := oldVersion.Delete(ctx); err != nil {
 		ctx.Rollback()
-		return newVersion, err
+		return err
 	}
 
 	c.PrepareForCreate(ctx.UserContext)
 	if err := c.Create(ctx); err != nil {
 		ctx.Rollback()
-		return newVersion, err
+		return err
 	}
 
 	// Find all edges going to old ver, make copy to new ver
@@ -182,7 +205,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 		premiseEdges, err := oldVersion.PremiseEdges(ctx)
 		if err != nil {
 			ctx.Rollback()
-			return newVersion, err
+			return err
 		}
 		for _, edge := range premiseEdges {
 			newEdge := PremiseEdge{
@@ -192,7 +215,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 			}
 			if err := newEdge.Create(ctx); err != nil {
 				ctx.Rollback()
-				return newVersion, err
+				return err
 			}
 		}
 	}
@@ -201,7 +224,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 	inferences, err := oldVersion.Inferences(ctx)
 	if err != nil {
 		ctx.Rollback()
-		return newVersion, err
+		return err
 	}
 	for _, edge := range inferences {
 		newEdge := Inference{
@@ -210,7 +233,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 		}
 		if err := newEdge.Create(ctx); err != nil {
 			ctx.Rollback()
-			return newVersion, err
+			return err
 		}
 	}
 
@@ -218,7 +241,7 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 	baseClaimEdges, err := oldVersion.BaseClaimEdges(ctx)
 	if err != nil {
 		ctx.Rollback()
-		return newVersion, err
+		return err
 	}
 	for _, edge := range baseClaimEdges {
 		newEdge := BaseClaimEdge{
@@ -227,16 +250,17 @@ func (c *Claim) Version(ctx *ServerContext) (Claim, GruffError) {
 		}
 		if err := newEdge.Create(ctx); err != nil {
 			ctx.Rollback()
-			return newVersion, err
+			return err
 		}
 	}
+
+	// TODO: FORGOT TO HANDLE PremiseEdges!
 
 	// TODO: Contexts
 	// TODO: References
 	// TODO: Tags
 
-	newVersion = *c
-	return newVersion, nil
+	return nil
 }
 
 func (c *Claim) Delete(ctx *ServerContext) GruffError {
@@ -338,7 +362,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		c.MultiPremise = true
 		c.PremiseRule = PREMISE_RULE_ALL
 
-		if _, err := c.Version(ctx); err != nil {
+		if err := c.version(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
