@@ -1,50 +1,43 @@
 package api
 
 import (
-	arango "github.com/arangodb/go-driver"
+	"os"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
 
-func SetUpRouter(test bool, db arango.Database) *echo.Echo {
+var cors []string
+
+type MiddlewareConfigurer interface {
+	ConfigureDefaultApiMiddleware(*echo.Echo) *echo.Echo
+	ConfigurePublicApiMiddleware(*echo.Echo) *echo.Group
+	ConfigurePrivateApiMiddleware(*echo.Echo) *echo.Group
+}
+
+
+func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	root := echo.New()
-
-	root.Use(middleware.Logger())
-	root.Use(middleware.Recover())
-	root.Use(middleware.CORS())
-	root.Use(middleware.Gzip())
-	root.Use(middleware.Secure())
-	root.Use(middleware.SecureWithConfig(middleware.SecureConfig{
-		XSSProtection:         "1; mode=block",
-		ContentTypeNosniff:    "nosniff",
-		XFrameOptions:         "SAMEORIGIN",
-		ContentSecurityPolicy: "default-src 'self'",
-	}))
-	root.Use(Secure(
-		ReferrerPolicy("same-origin"),
-	))
-
-	root.Use(DBMiddleware(db))
-	root.Use(DetermineType)
-	root.Use(InitializePayload)
-	root.Use(SettingHeaders(test))
 
 	root.GET("/", Home)
 
-	// Public Api
-	public := root.Group("/api")
+	if os.Getenv("GRUFF_ENV") == "production" {
+		cors = []string{"*"}
+	} else {
+		cors = []string{"*"}
+	}
+
+	//
+	// PUBLIC ENDPOINTS
+	//
+	public := mc.ConfigurePublicApiMiddleware(root)
 
 	public.POST("/auth", SignIn)
 	public.POST("/users", SignUp)
 
-	// Private Api
-	private := root.Group("/api")
-	config := middleware.JWTConfig{
-		Claims:     &jwtCustomClaims{},
-		SigningKey: []byte("secret"),
-	}
-	private.Use(middleware.JWTWithConfig(config))
-	private.Use(SessionUser)
+	//
+	// PRIVATE ENDPOINTS
+	//
+	private := mc.ConfigurePrivateApiMiddleware(root)
 
 	private.GET("/users", List)
 	private.GET("/users/:id", Get)
@@ -105,3 +98,47 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 
 	return root
 }
+
+type ProductionMiddlewareConfigurer struct{}
+
+func (mc ProductionMiddlewareConfigurer) ConfigureDefaultApiMiddleware(root *echo.Echo) *echo.Echo {
+	root.Use(middleware.Logger())
+	root.Use(middleware.Recover())
+	root.Use(middleware.CORS())
+	root.Use(middleware.Secure())
+	root.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "SAMEORIGIN",
+		ContentSecurityPolicy: "default-src 'self'",
+	}))
+	root.Use(Secure(
+		ReferrerPolicy("same-origin"),
+	))
+
+	root.Use(DBMiddleware(ARANGODB_POOL))
+	root.Use(DetermineType)
+	root.Use(InitializePayload)
+	root.Use(SettingHeaders(false))
+
+	return root
+}
+
+func (mc ProductionMiddlewareConfigurer) ConfigurePublicApiMiddleware(root *echo.Echo) *echo.Group {
+	api := mc.ConfigureDefaultApiMiddleware(root)
+	public := api.Group("/api")
+	root.Use(middleware.Gzip())
+	public.Use(Session)
+
+	return public
+}
+
+func (mc ProductionMiddlewareConfigurer) ConfigurePrivateApiMiddleware(root *echo.Echo) *echo.Group {
+	api := mc.ConfigureDefaultApiMiddleware(root)
+	private := api.Group("/api")
+	private.Use(middleware.Gzip())
+	private.Use(Session)
+
+	return private
+}
+

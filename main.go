@@ -14,7 +14,7 @@ func main() {
 	config.Init()
 	api.ARANGODB_POOL = config.InitDB()
 
-	root := api.SetUpRouter(false, api.ARANGODB_POOL)
+	root := api.SetUpRouter(api.ProductionMiddlewareConfigurer{})
 	addr := ":" + os.Getenv("PORT")
 
 	go func() {

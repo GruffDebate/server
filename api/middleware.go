@@ -82,34 +82,63 @@ func SettingHeaders(test bool) echo.MiddlewareFunc {
 	}
 }
 
-func SessionUser(next echo.HandlerFunc) echo.HandlerFunc {
+func Session(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		ctx := ServerContext(c)
 		user := gruff.User{}
 
-		auth := strings.Split(c.Request().Header.Get("Authorization"), " ")
-		if len(auth) != 1 {
-			token, _ := jwt.ParseWithClaims(auth[1], &jwtCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-				return []byte("secret"), nil
-			})
+		authorization := c.Request().Header.Get("Authorization")
+		secretKey := os.Getenv("JWT_KEY_SIGNIN")
+		if authorization != "" {
+			tokenSlice := strings.Split(authorization, " ")
+			if len(tokenSlice) == 2 && tokenSlice[0] == "Bearer" {
+				token, err := gruff.VerifyJWTToken(tokenSlice[1], secretKey)
+				if err != nil {
+					return echo.NewHTTPError(http.StatusUnauthorized)
+				}
 
-			if token.Valid {
-				if claims, ok := token.Claims.(*jwtCustomClaims); ok {
-					user.Key = claims.Key
-					user.Name = claims.Name
-					user.Email = claims.Email
-					user.Username = claims.Username
-					user.Image = claims.Image
-					user.Curator = claims.Curator
-					user.Admin = claims.Admin
+				claims := token.Claims.(jwt.MapClaims)
+				if token.Valid && claims["iss"] == gruff.JWT_ISS {
+					uidParse := claims["user"].(string)
+					// uid := string(uidParse)
+					user.Key = uidParse
+					if err := user.Load(ctx); err != nil {
+						return echo.NewHTTPError(http.StatusUnauthorized)
+					}
 				} else {
-					user.Key = ""
+					return echo.NewHTTPError(http.StatusUnauthorized)
 				}
 			} else {
-				return echo.NewHTTPError(http.StatusUnauthorized)
+				user.Key = ""
 			}
 		} else {
 			user.Key = ""
 		}
+
+		// auth := strings.Split(c.Request().Header.Get("Authorization"), " ")
+		// if len(auth) != 1 {
+		// 	token, _ := jwt.ParseWithClaims(auth[1], &jwtCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// 		return []byte("secret"), nil
+		// 	})
+
+		// 	if token.Valid {
+		// 		if claims, ok := token.Claims.(*jwtCustomClaims); ok {
+		// 			user.Key = claims.Key
+		// 			user.Name = claims.Name
+		// 			user.Email = claims.Email
+		// 			user.Username = claims.Username
+		// 			user.Image = claims.Image
+		// 			user.Curator = claims.Curator
+		// 			user.Admin = claims.Admin
+		// 		} else {
+		// 			user.Key = ""
+		// 		}
+		// 	} else {
+		// 		return echo.NewHTTPError(http.StatusUnauthorized)
+		// 	}
+		// } else {
+		// 	user.Key = ""
+		// }
 
 		c.Set("UserContext", user)
 

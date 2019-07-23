@@ -2,37 +2,20 @@ package api
 
 import (
 	"net/http"
-	"time"
+	"fmt"
 
 	"github.com/GruffDebate/server/gruff"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type jwtCustomClaims struct {
-	Key      string `json:"key"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Image    string `json:"img"`
-	Curator  bool   `json:"curator"`
-	Admin    bool   `json:"admin"`
-	jwt.StandardClaims
-}
-
-type customPassword struct {
-	Email       string `json:"email"`
-	OldPassword string `json:"oldpassword"`
-	NewPassword string `json:"newpassword"`
-}
-
 func SignUp(c echo.Context) error {
 	ctx := ServerContext(c)
 
-	u := new(gruff.User)
+	u := gruff.User{}
 
-	if err := c.Bind(u); err != nil {
+	if err := c.Bind(&u); err != nil {
+		fmt.Println(err)
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
@@ -40,7 +23,7 @@ func SignUp(c echo.Context) error {
 		return AddGruffError(ctx, c, err)
 	}
 
-	t, err := TokenForUser(*u)
+	t, err := TokenForUser(u)
 	if err != nil {
 		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
@@ -57,15 +40,20 @@ func SignIn(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
+	fmt.Println("oi0", u)
+
 	user := gruff.User{}
 
 	if err := u.Load(ctx); err != nil {
+		fmt.Println("oi1")
 		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
 
 	if ok, _ := verifyPassword(user, u.Password); ok {
+		fmt.Println("oi2")
 		t, err := TokenForUser(user)
 		if err != nil {
+			fmt.Println("oi3")
 			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 		}
 
@@ -78,23 +66,9 @@ func SignIn(c echo.Context) error {
 }
 
 func TokenForUser(user gruff.User) (string, error) {
-	claims := &jwtCustomClaims{
-		user.Key,
-		user.Name,
-		user.Username,
-		user.Email,
-		user.Image,
-		user.Curator,
-		user.Admin,
-		jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 72).Unix(),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	t, err := token.SignedString([]byte("secret"))
-	return t, err
+	expireAt := gruff.JWTTokenExpirationDate()
+	jwt, dberr := gruff.IssueJWToken(user.Key, []string{"user"}, expireAt)
+	return jwt, dberr
 }
 
 func verifyPassword(user gruff.User, password string) (bool, error) {
@@ -103,6 +77,12 @@ func verifyPassword(user gruff.User, password string) (bool, error) {
 
 func ChangePassword(c echo.Context) error {
 	ctx := ServerContext(c)
+
+	type customPassword struct {
+		Email       string `json:"email"`
+		OldPassword string `json:"oldpassword"`
+		NewPassword string `json:"newpassword"`
+	}	
 
 	cp := new(customPassword)
 	if err := c.Bind(&cp); err != nil {

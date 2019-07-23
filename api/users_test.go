@@ -3,11 +3,11 @@ package api
 import (
 	_ "encoding/json"
 	_ "fmt"
-	_ "net/http"
-	_ "testing"
+	"net/http"
+	"testing"
 
 	"github.com/GruffDebate/server/gruff"
-	_ "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,6 +26,40 @@ func createUser(name string, username string, email string) gruff.User {
 
 	return u
 }
+
+func TestCreateUsers(t *testing.T) {
+	setup()
+	defer teardown()
+
+	r := New(nil)
+
+	u1 := createUser("test1", "test1", "test1@test1.com")
+
+	r.POST("/api/users")
+	r.SetBody(u1)
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusCreated, res.Code)
+}
+
+func TestLogin(t *testing.T) {
+	setup()
+	defer teardown()
+
+	r := New(nil)
+
+	createUser("test1", "test1", "test1@test1.com")
+
+	u := map[string]interface{}{
+		"email": "test1@test1.com",
+		"password": "123456",
+	}
+
+	r.POST("/api/auth")
+	r.SetBody(u)
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusOK, res.Code)
+}
+
 
 /*
 func TestListUsers(t *testing.T) {
