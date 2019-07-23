@@ -14,7 +14,7 @@ type User struct {
 	Username        string     `json:"username" settable:"false" sql:"unique_index;not null" valid:"length(3|50),matches(^[a-zA-Z0-9][a-zA-Z0-9-_]+$),required"`
 	Email           string     `json:"email" sql:"not null" valid:"email"`
 	Password        string     `json:"password,omitempty" sql:"-" valid:"length(5|64)"`
-	HashedPassword  []byte     `json:"hashed_password"` // TODO: don't return this value via the API
+	HashedPassword  string     `json:"hashed_password"` // TODO: don't return this value via the API
 	Image           string     `json:"img,omitempty"`
 	Curator         bool       `json:"curator"`
 	Admin           bool       `json:"admin"`
@@ -62,21 +62,26 @@ func (u User) ValidateForCreate() GruffError {
 	return nil
 }
 
-func (u User) ValidateForUpdate() GruffError {
-	err := u.ValidateField("Name")
-	if err != nil {
-		return err
+func (u User) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	updated := User{
+		Name:     updates["name"].(string),
+		Email:    updates["email"].(string),
+		Username: updates["username"].(string),
 	}
-	err = u.ValidateField("Email")
-	if err != nil {
-		return err
+	if updated.Name != "" {
+		if err := updated.ValidateField("Name"); err != nil {
+			return err
+		}
 	}
-	err = u.ValidateField("Username")
-	if err != nil {
-		return err
+	if updated.Email != "" {
+		if err := updated.ValidateField("Email"); err != nil {
+			return err
+		}
 	}
-	if u.Password != "" {
-		return NewBusinessError("Password: use the Change Password method to change the password;")
+	if updated.Username != "" {
+		if err := updated.ValidateField("Username"); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -125,8 +130,9 @@ func (u *User) Create(ctx *ServerContext) GruffError {
 
 	password := u.Password
 	u.Password = ""
-	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
+	u.HashedPassword = string(hashedPassword[:])
 	if _, dberr := col.CreateDocument(ctx.Context, u); dberr != nil {
 		return NewServerError(dberr.Error())
 	}
@@ -142,7 +148,7 @@ func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffE
 
 	}
 
-	if err := u.ValidateForUpdate(); err != nil {
+	if err := u.ValidateForUpdate(updates); err != nil {
 		return err
 	}
 
@@ -176,7 +182,7 @@ func (u *User) Load(ctx *ServerContext) GruffError {
 			// TODO: unique index on lower(username)
 			query = fmt.Sprintf("FOR obj IN %s FILTER LOWER(obj.username) == @username LIMIT 1 RETURN obj", u.CollectionName())
 		} else if u.Email != "" {
-			bindVars["username"] = strings.ToLower(u.Email)
+			bindVars["email"] = strings.ToLower(u.Email)
 			// TODO: unique index on lower(email)
 			query = fmt.Sprintf("FOR obj IN %s FILTER LOWER(obj.email) == @email LIMIT 1 RETURN obj", u.CollectionName())
 		} else {
@@ -202,7 +208,7 @@ func (u *User) Load(ctx *ServerContext) GruffError {
 // Business methods
 
 func (u *User) VerifyPassword(ctx *ServerContext, password string) (bool, GruffError) {
-	err := bcrypt.CompareHashAndPassword(u.HashedPassword, []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(u.HashedPassword), []byte(password))
 	if err != nil {
 		return false, NewBusinessError(err.Error())
 	}
@@ -220,8 +226,9 @@ func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) GruffError
 	}
 	newPassword := u.Password
 	u.Password = ""
-	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 
+	u.HashedPassword = string(hashedPassword[:])
 	update := map[string]interface{}{
 		"hashed_password": u.HashedPassword,
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func createUser(name string, username string, email string) gruff.User {
@@ -18,9 +17,6 @@ func createUser(name string, username string, email string) gruff.User {
 		Email:    email,
 		Password: "123456",
 	}
-	password := u.Password
-	u.Password = ""
-	u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
 	u.Create(CTX)
 

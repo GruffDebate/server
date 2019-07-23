@@ -288,14 +288,14 @@ func TestClaimVersion(t *testing.T) {
 	origClaimKey := claim.ArangoKey()
 
 	claim.Title = "New Title"
-	c, err := claim.Version(CTX)
+	err = claim.version(CTX)
 	assert.NoError(t, err)
 
-	err = c.Load(CTX)
+	err = claim.Load(CTX)
 	assert.NoError(t, err)
-	assert.Nil(t, c.DeletedAt)
-	assert.Equal(t, "New Title", c.Title)
-	assert.NotEqual(t, origClaimKey, c.ArangoKey())
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "New Title", claim.Title)
+	assert.NotEqual(t, origClaimKey, claim.ArangoKey())
 
 	origClaim := Claim{}
 	origClaim.Key = origClaimKey
@@ -306,31 +306,31 @@ func TestClaimVersion(t *testing.T) {
 	assert.Equal(t, origClaimKey, origClaim.ArangoKey())
 
 	// Verify new edges were created
-	premiseEdges, err = c.PremiseEdges(CTX)
+	premiseEdges, err = claim.PremiseEdges(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(premiseEdges))
-	assert.Equal(t, c.ArangoID(), premiseEdges[0].From)
-	assert.Equal(t, c.ArangoID(), premiseEdges[1].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[1].From)
 	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
 	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
 	assert.Nil(t, premiseEdges[0].DeletedAt)
 	assert.Nil(t, premiseEdges[1].DeletedAt)
 
-	inferences, err = c.Inferences(CTX)
+	inferences, err = claim.Inferences(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(inferences))
-	assert.Equal(t, c.ArangoID(), inferences[0].From)
-	assert.Equal(t, c.ArangoID(), inferences[1].From)
+	assert.Equal(t, claim.ArangoID(), inferences[0].From)
+	assert.Equal(t, claim.ArangoID(), inferences[1].From)
 	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
 	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
 	assert.Nil(t, inferences[0].DeletedAt)
 	assert.Nil(t, inferences[1].DeletedAt)
 
-	bces, err = c.BaseClaimEdges(CTX)
+	bces, err = claim.BaseClaimEdges(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(bces))
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
-	assert.Equal(t, c.ArangoID(), bces[0].To)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
 	assert.Nil(t, bces[0].DeletedAt)
 
 	args, err = claim.Arguments(CTX)

@@ -13,5 +13,4 @@ func TestIsValidator(t *testing.T) {
 	assert.True(t, IsValidator(reflect.TypeOf(Argument{})))
 	assert.True(t, IsValidator(reflect.TypeOf(Link{})))
 	assert.True(t, IsValidator(reflect.TypeOf(Context{})))
-	assert.True(t, IsValidator(reflect.TypeOf(Tag{})))
 }

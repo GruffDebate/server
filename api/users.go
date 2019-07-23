@@ -40,14 +40,18 @@ func SignIn(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	fmt.Println("oi0", u)
+	user := gruff.User{
+		Email: u.Email,
+	}
 
-	user := gruff.User{}
-
-	if err := u.Load(ctx); err != nil {
-		fmt.Println("oi1")
+	if err := user.Load(ctx); err != nil {
 		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
+	
+
+	// ok, errr := verifyPassword(user, u.Password)
+	fmt.Println(user)
+	fmt.Println(u)
 
 	if ok, _ := verifyPassword(user, u.Password); ok {
 		fmt.Println("oi2")
@@ -62,6 +66,8 @@ func SignIn(c echo.Context) error {
 		return c.JSON(http.StatusOK, u)
 	}
 
+	fmt.Println("oi0", u)
+
 	return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 }
 
@@ -72,7 +78,7 @@ func TokenForUser(user gruff.User) (string, error) {
 }
 
 func verifyPassword(user gruff.User, password string) (bool, error) {
-	return bcrypt.CompareHashAndPassword(user.HashedPassword, []byte(password)) == nil, nil
+	return bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(password)) == nil, nil
 }
 
 func ChangePassword(c echo.Context) error {
