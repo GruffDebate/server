@@ -50,7 +50,7 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	private.GET("/users/:id", Get)
 	private.GET("/users/me", GetMe)
 	private.PUT("/users/me", UpdateMe)
-	//private.PUT("/users/:id", Update)
+	private.PUT("/users/:id", Update)
 	private.PUT("/users/password", ChangePassword)
 	public.PUT("/users/changePassword", ChangePassword)
 	//private.DELETE("/users/:id", Delete)
@@ -60,7 +60,7 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	public.GET("/arguments", List)
 	public.GET("/arguments/:id", GetArgument)
 	private.POST("/arguments", CreateArgument)
-	//private.PUT("/arguments/:id", Update)
+	private.PUT("/arguments/:id", Update)
 	//private.DELETE("/arguments/:id", Delete)
 	//private.PUT("/arguments/:id/move/:newId/type/:type", MoveArgument)
 
@@ -70,7 +70,7 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	//public.GET("/contexts", ListContext)
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
-	//private.PUT("/contexts/:id", Update)
+	private.PUT("/contexts/:id", Update)
 	//private.DELETE("/contexts/:id", Delete)
 
 	//private.POST("/claims/:parentId/contexts/:id", AddAssociation)
@@ -86,7 +86,7 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	public.GET("/claims/top", ListClaims("top"))
 	public.GET("/claims/:id", GetClaim)
 	private.POST("/claims", Create)
-	//private.PUT("/claims/:id", Update)
+	private.PUT("/claims/:id", Update)
 	//private.DELETE("/claims/:id", Delete)
 	//private.POST("/claims/:id/truth", SetScore)
 	//private.PUT("/claims/:id/truth", SetScore)
@@ -94,14 +94,8 @@ func SetUpRouter(test bool, db arango.Database) *echo.Echo {
 	public.GET("/links", List)
 	public.GET("/links/:id", Get)
 	private.POST("/links", Create)
-	//private.PUT("/links/:id", Update)
+	private.PUT("/links/:id", Update)
 	//private.DELETE("/links/:id", Delete)
-
-	public.GET("/tags", List)
-	public.GET("/tags/:id", Get)
-	private.POST("/tags", Create)
-	//private.PUT("/tags/:id", Update)
-	//private.DELETE("/tags/:id", Delete)
 
 	//public.GET("/tags/:id/claims", ListClaimsByTag)
 

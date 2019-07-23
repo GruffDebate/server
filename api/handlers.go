@@ -50,6 +50,37 @@ func Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, item)
 }
 
+func Update(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	if !gruff.IsUpdater(ctx.Type) {
+		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Updater interface"))
+	}
+
+	updates := map[string]interface{}{}
+	if err := c.Bind(&updates); err != nil {
+		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	var key string
+	var ok bool
+	if key, ok = updates["_key"].(string); !ok {
+		return AddGruffError(ctx, c, gruff.NewBusinessError("Key: non zero value required;"))
+	}
+
+	item := reflect.New(ctx.Type).Interface()
+	if err := gruff.SetKey(&item, key); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	err := item.(gruff.Updater).Update(ctx, updates)
+	if err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, item)
+}
+
 func Get(c echo.Context) error {
 	ctx := ServerContext(c)
 

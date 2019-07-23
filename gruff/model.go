@@ -179,3 +179,21 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffErr
 
 	return NewNotFoundError("field not found", data)
 }
+
+func SetKey(item interface{}, key string) GruffError {
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return NewBusinessError("Cannot set value on nil item")
+		}
+		v = v.Elem()
+	}
+
+	fv := v.FieldByName("Key")
+	if fv.Kind() != reflect.String {
+		return NewServerError("Item does not have a Key field")
+	}
+
+	fv.SetString(key)
+	return nil
+}
