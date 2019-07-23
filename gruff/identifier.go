@@ -1,6 +1,7 @@
 package gruff
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -14,6 +15,7 @@ type Identifier struct {
 	CreatedAt   time.Time  `json:"start"`
 	UpdatedAt   time.Time  `json:"mod"`
 	DeletedAt   *time.Time `json:"end"`
+	QueryAt     *time.Time `json:"-"`
 	CreatedByID string     `json:"creator"`
 }
 
@@ -44,6 +46,23 @@ func (i *Identifier) PrepareForCreate(u User) {
 func (i *Identifier) PrepareForDelete() {
 	i.DeletedAt = support.TimePtr(time.Now())
 	return
+}
+
+func (i Identifier) DateFilter(bindVars map[string]interface{}) string {
+	var queryAt *time.Time
+	if i.QueryAt != nil {
+		queryAt = i.QueryAt
+	} else if i.DeletedAt != nil {
+		queryAt = i.DeletedAt
+	}
+
+	if queryAt != nil {
+		bindVars["query_at"] = queryAt
+		query := fmt.Sprintf("FILTER obj.start <= @query_at AND (obj.end == null OR obj.end >= @query_at)")
+		return query
+	} else {
+		return "FILTER obj.end == null"
+	}
 }
 
 func IsIdentifier(t reflect.Type) bool {

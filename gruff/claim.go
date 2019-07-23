@@ -2,7 +2,6 @@ package gruff
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/GruffDebate/server/support"
 	arango "github.com/arangodb/go-driver"
@@ -109,7 +108,7 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 
 // If the Claim object has a key, that exact Claim will be loaded
 // Otherwise, Load will look for Claims matching the ID
-// If CreatedAt is a non-blank value, it will load the Claim active at that time (if any)
+// If QueryAt is a non-nil value, it will load the Claim active at that time (if any)
 // Otherwise, it will return the current active (undeleted) version.
 func (c *Claim) Load(ctx *ServerContext) GruffError {
 	db := ctx.Arango.DB
@@ -125,17 +124,17 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 			return NewServerError(dberr.Error())
 		}
 	} else if c.ID != "" {
-		var empty time.Time
-		var query string
 		bindVars := map[string]interface{}{
 			"id": c.ID,
 		}
-		if c.CreatedAt == empty {
-			query = fmt.Sprintf("FOR c IN %s FILTER c.id == @id AND c.end == null SORT c.start DESC LIMIT 1 RETURN c", c.CollectionName())
-		} else {
-			bindVars["start"] = c.CreatedAt
-			query = fmt.Sprintf("FOR c IN %s FILTER c.id == @id AND c.start <= @start AND (c.end == null OR c.end > @start) SORT c.start DESC LIMIT 1 RETURN c", c.CollectionName())
-		}
+		query := fmt.Sprintf(`FOR obj IN %s 
+                                       FILTER obj.id == @id
+                                       %s
+                                       SORT obj.start DESC 
+                                       LIMIT 1 
+                                       RETURN obj`,
+			c.CollectionName(),
+			c.DateFilter(bindVars))
 		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
 			return NewServerError(err.Error())
@@ -180,12 +179,7 @@ func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Gruff
 }
 
 func (c *Claim) version(ctx *ServerContext) GruffError {
-	oldVersion := Claim{}
-	oldVersion.ID = c.ID
-	err := oldVersion.Load(ctx)
-	if err != nil {
-		return err
-	}
+	oldVersion := *c
 
 	// This should delete all the old edges, too
 	if err := oldVersion.Delete(ctx); err != nil {
@@ -200,7 +194,6 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 	}
 
 	// Find all edges going to old ver, make copy to new ver
-	// TODO: The method to get edges needs to only return the undeleted edges... but they were already deleted...
 	if c.MultiPremise {
 		premiseEdges, err := oldVersion.PremiseEdges(ctx)
 		if err != nil {
@@ -254,11 +247,26 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		}
 	}
 
-	// TODO: FORGOT TO HANDLE PremiseEdges!
+	// Any edges using this Claim as a Premise
+	premiseEdges, err := oldVersion.EdgesToThisPremise(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range premiseEdges {
+		newEdge := PremiseEdge{
+			From:  edge.From,
+			To:    c.ArangoID(),
+			Order: edge.Order,
+		}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
 
 	// TODO: Contexts
-	// TODO: References
-	// TODO: Tags
+	// TODO: Links
 
 	return nil
 }
@@ -323,9 +331,21 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 		}
 	}
 
+	// Premise edges to this premise
+	premiseEdges, err := c.EdgesToThisPremise(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range premiseEdges {
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
 	// TODO: Contexts
 	// TODO: References
-	// TODO: Tags
 
 	return nil
 }
@@ -392,18 +412,19 @@ func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
-	// TODO: not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf(`FOR i IN %s
-                                 FOR a IN %s
-                                   FILTER i._to == a._id
-                                      AND i._from == @claim
-                                   RETURN a`,
-		Inference{}.CollectionName(),
-		Argument{}.CollectionName(),
-	)
 	bindVars := map[string]interface{}{
 		"claim": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._to == a._id
+                                      AND obj._from == @claim
+                                   %s
+                                   RETURN a`,
+		Inference{}.CollectionName(),
+		Argument{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
 		return args, NewServerError(err.Error())
@@ -425,19 +446,20 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
 	db := ctx.Arango.DB
 	premises := []Claim{}
 
-	// TODO: not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf(`FOR p IN %s
-                                 FOR c IN %s
-                                   FILTER p._to == c._id
-                                      AND p._from == @claim
-                                   SORT p.order
-                                   RETURN c`,
-		PremiseEdge{}.CollectionName(),
-		Claim{}.CollectionName(),
-	)
 	bindVars := map[string]interface{}{
 		"claim": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR c IN %s
+                                   FILTER obj._to == c._id
+                                      AND obj._from == @claim
+                                   %s
+                                   SORT obj.order
+                                   RETURN c`,
+		PremiseEdge{}.CollectionName(),
+		Claim{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
 		return premises, NewServerError(err.Error())
@@ -527,11 +549,16 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
-	// TODO: order by, not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from SORT e.order RETURN e", PremiseEdge{}.CollectionName())
 	bindVars := map[string]interface{}{
 		"from": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                %s
+                                SORT obj.order
+                                RETURN obj`,
+		PremiseEdge{}.CollectionName(),
+		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
 		return edges, NewServerError(err.Error())
@@ -554,11 +581,16 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
 	qctx := arango.WithQueryCount(ctx.Context)
 	var n int64
 
-	// TODO: not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from RETURN e", PremiseEdge{}.CollectionName())
 	bindVars := map[string]interface{}{
 		"from": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                %s
+                                SORT obj.order
+                                RETURN obj`,
+		PremiseEdge{}.CollectionName(),
+		c.DateFilter(bindVars))
 	cursor, err := db.Query(qctx, query, bindVars)
 	if err != nil {
 		return n, NewServerError(err.Error())
@@ -568,16 +600,51 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
 	return n, nil
 }
 
+// TODO: Make generic
+func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, GruffError) {
+	db := ctx.Arango.DB
+	edges := []PremiseEdge{}
+
+	bindVars := map[string]interface{}{
+		"to": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._to == @to 
+                                %s
+                                RETURN obj`,
+		PremiseEdge{}.CollectionName(),
+		c.DateFilter(bindVars))
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return edges, NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	for cursor.HasMore() {
+		edge := PremiseEdge{}
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edges, NewServerError(err.Error())
+		}
+		edges = append(edges, edge)
+	}
+
+	return edges, nil
+}
+
 // TODO: this could most definitely be made more generic...
 func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
 	db := ctx.Arango.DB
 	edges := []Inference{}
 
-	// TODO: not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from RETURN e", Inference{}.CollectionName())
 	bindVars := map[string]interface{}{
 		"from": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                %s
+                                RETURN obj`,
+		Inference{}.CollectionName(),
+		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
 		return edges, NewServerError(err.Error())
@@ -600,11 +667,15 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 	db := ctx.Arango.DB
 	edges := []BaseClaimEdge{}
 
-	// TODO: not deleted, or deleted > c.Deleted
-	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to RETURN e", BaseClaimEdge{}.CollectionName())
 	bindVars := map[string]interface{}{
 		"to": c.ArangoID(),
 	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._to == @to
+                                %s
+                                RETURN obj`,
+		BaseClaimEdge{}.CollectionName(),
+		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
 		return edges, NewServerError(err.Error())
