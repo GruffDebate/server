@@ -67,3 +67,9 @@ arangomigo migrations/config.test
 ```
 
 This should set up your test database, which will be used when running the test suite for this project. Each time you update your code base to the latest version, be sure to run the migration again to make sure your test DB will still be compatible.
+
+## Docker
+```bash
+docker build . -t gruffdebate/server
+docker run --rm -it -p 8080:8080 gruffdebate/server
+```

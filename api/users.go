@@ -48,16 +48,9 @@ func SignIn(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
 	
-
-	// ok, errr := verifyPassword(user, u.Password)
-	fmt.Println(user)
-	fmt.Println(u)
-
 	if ok, _ := verifyPassword(user, u.Password); ok {
-		fmt.Println("oi2")
 		t, err := TokenForUser(user)
 		if err != nil {
-			fmt.Println("oi3")
 			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 		}
 
@@ -65,8 +58,6 @@ func SignIn(c echo.Context) error {
 
 		return c.JSON(http.StatusOK, u)
 	}
-
-	fmt.Println("oi0", u)
 
 	return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 }

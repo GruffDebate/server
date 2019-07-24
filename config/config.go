@@ -9,14 +9,15 @@ import (
 )
 
 var CONFIGURATIONS map[string]string = map[string]string{
-	"GRUFF_ENV":                  "development",
-	"GRUFF_NAME":                 "GRUFF",
-	"ARANGO_ENDPOINT":            "http://localhost:8529",
-	"ARANGO_DB":                  "gruff_test",
-	"ARANGO_USER":                "root",
-	"ARANGO_PASS":                "",
-	"JWT_KEY_SIGNIN":             "a324dd15-74c5-44ea-8f64-8f0e6b90844c",
-	"JWT_TOKEN_EXPIRATION":       "24",
+	"GRUFF_ENV":            "development",
+	"GRUFF_NAME":           "GRUFF",
+	"PORT":                 "8080",
+	"ARANGO_ENDPOINT":      "http://67.207.87.34:8529",
+	"ARANGO_DB":            "gruff",
+	"ARANGO_USER":          "root",
+	"ARANGO_PASS":          "ha2WF4qdHc",
+	"JWT_KEY_SIGNIN":       "a324dd15-74c5-44ea-8f64-8f0e6b90844c",
+	"JWT_TOKEN_EXPIRATION": "24",
 }
 
 func Init() {
@@ -25,6 +26,9 @@ func Init() {
 	}
 	if os.Getenv("GRUFF_NAME") == "" {
 		os.Setenv("GRUFF_NAME", CONFIGURATIONS["GRUFF_NAME"])
+	}
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", CONFIGURATIONS["PORT"])
 	}
 	if os.Getenv("JWT_KEY_SIGNIN") == "" {
 		os.Setenv("JWT_KEY_SIGNIN", CONFIGURATIONS["JWT_KEY_SIGNIN"])
@@ -42,11 +46,11 @@ func Init() {
 		os.Setenv("ARANGO_USER", CONFIGURATIONS["ARANGO_USER"])
 	}
 	if os.Getenv("ARANGO_PASS") == "" {
-		os.Setenv("ARANGO_PASS", "")
+		os.Setenv("ARANGO_PASS", CONFIGURATIONS["ARANGO_PASS"])
 	}
 }
 
-func InitDB() (arango.Database) {
+func InitDB() arango.Database {
 	client, err := gruff.OpenTestConnection()
 	if err != nil {
 		fmt.Println("No error should happen when connecting to test database, but got:", err)
