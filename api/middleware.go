@@ -115,31 +115,6 @@ func Session(next echo.HandlerFunc) echo.HandlerFunc {
 			user.Key = ""
 		}
 
-		// auth := strings.Split(c.Request().Header.Get("Authorization"), " ")
-		// if len(auth) != 1 {
-		// 	token, _ := jwt.ParseWithClaims(auth[1], &jwtCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// 		return []byte("secret"), nil
-		// 	})
-
-		// 	if token.Valid {
-		// 		if claims, ok := token.Claims.(*jwtCustomClaims); ok {
-		// 			user.Key = claims.Key
-		// 			user.Name = claims.Name
-		// 			user.Email = claims.Email
-		// 			user.Username = claims.Username
-		// 			user.Image = claims.Image
-		// 			user.Curator = claims.Curator
-		// 			user.Admin = claims.Admin
-		// 		} else {
-		// 			user.Key = ""
-		// 		}
-		// 	} else {
-		// 		return echo.NewHTTPError(http.StatusUnauthorized)
-		// 	}
-		// } else {
-		// 	user.Key = ""
-		// }
-
 		c.Set("UserContext", user)
 
 		return next(c)

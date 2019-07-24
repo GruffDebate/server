@@ -2,6 +2,7 @@ package api
 
 import (
 	"os"
+
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
@@ -13,7 +14,6 @@ type MiddlewareConfigurer interface {
 	ConfigurePublicApiMiddleware(*echo.Echo) *echo.Group
 	ConfigurePrivateApiMiddleware(*echo.Echo) *echo.Group
 }
-
 
 func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	root := echo.New()
@@ -48,7 +48,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.PUT("/users/changePassword", ChangePassword)
 	//private.DELETE("/users/:id", Delete)
 
-	//private.GET("/users/claims", ListClaimsUser)
+	// private.GET("/users/claims", ListClaimsUser)
 
 	public.GET("/arguments", List)
 	public.GET("/arguments/:id", GetArgument)
@@ -141,4 +141,3 @@ func (mc ProductionMiddlewareConfigurer) ConfigurePrivateApiMiddleware(root *ech
 
 	return private
 }
-

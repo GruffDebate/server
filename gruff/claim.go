@@ -92,12 +92,12 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
-
 	}
 
 	// TODO: validate for create
 	c.PrepareForCreate(ctx.UserContext)
 
+	fmt.Println("oi-model")
 	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
 		return NewServerError(dberr.Error())
 	}

@@ -3,6 +3,7 @@ package gruff
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -205,4 +206,45 @@ func SetKey(item interface{}, key string) GruffError {
 
 	fv.SetString(key)
 	return nil
+}
+
+func SetUserID(item interface{}, id string) error {
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return errors.New("Cannot set value on nil item")
+		}
+		v = reflect.ValueOf(item).Elem()
+	}
+	t := v.Type()
+	if !TypeHasUserField(t) {
+		return errors.New("Type does not have a reference to a user")
+	}
+	userField, _ := UserIDField(t)
+	f := v.FieldByName(userField.Name)
+	if f.Type().Kind() == reflect.Ptr {
+		f.Set(reflect.ValueOf(&id))
+	} else {
+		f.Set(reflect.ValueOf(id))
+	}
+	return nil
+}
+
+func TypeHasUserField(t reflect.Type) bool {
+	userField, _ := UserIDField(t)
+	return userField != nil
+}
+
+func UserIDField(t reflect.Type) (field *reflect.StructField, dbFieldName string) {
+	elemT := t
+	if elemT.Kind() == reflect.Ptr {
+		elemT = elemT.Elem()
+	}
+
+	f, found := elemT.FieldByName("CreatedByID")
+	if found {
+		field = &f
+		dbFieldName = "creator"
+	}
+	return
 }

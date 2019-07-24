@@ -3,10 +3,13 @@ package api
 import (
 	_ "encoding/json"
 	_ "fmt"
+	"net/http"
 	_ "net/http"
+	"testing"
 	_ "testing"
 
 	"github.com/GruffDebate/server/gruff"
+	"github.com/stretchr/testify/assert"
 	_ "github.com/stretchr/testify/assert"
 )
 
@@ -25,6 +28,75 @@ func createClaim() gruff.Claim {
 	claim.Create(CTX)
 
 	return claim
+}
+
+func createClaimByUser() gruff.Claim {
+	u := gruff.User{
+		Name:     "claim user",
+		Username: "claimguy",
+		Email:    "claimguy@gruff.org",
+		Password: "123456",
+	}
+
+	u.Create(CTX)
+
+	claim := gruff.Claim{
+		Title:        "Let's create a new claim",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+	CTX.UserContext.Key = u.ArangoID()
+
+	claim.Create(CTX)
+	return claim
+
+	claim.Identifier.CreatedByID = u.ArangoID()
+	return claim
+}
+
+func seedClaimByUser() (gruff.User, gruff.Claim) {
+	u := gruff.User{
+		Name:     "claim user",
+		Username: "claimguy",
+		Email:    "claimguy@gruff.org",
+		Password: "123456",
+	}
+
+	u.Create(CTX)
+
+	claim := gruff.Claim{
+		Title:        "Let's create a new claim",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+	CTX.UserContext.Key = u.ArangoID()
+
+	claim.Identifier.CreatedByID = u.ArangoID()
+	return u, claim
+}
+
+func TestCreateClaim(t *testing.T) {
+	setup()
+	defer teardown()
+
+	u1, c1 := seedClaimByUser()
+
+	r := New(tokenForTestUser(u1))
+
+	r.POST("/api/claims")
+	r.SetBody(c1)
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusCreated, res.Code)
 }
 
 /*
