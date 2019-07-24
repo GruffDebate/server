@@ -216,6 +216,19 @@ func TestClaimVersion(t *testing.T) {
 	err = distantClaim.Create(CTX)
 	assert.NoError(t, err)
 
+	mpClaim := Claim{
+		Title:        "This is an MP that uses the main claim",
+		Description:  "Not military police, mind you",
+		Image:        "https://sgws3productimages.azureedge.net/sgwproductimages/images/33/4-5-2019/35ae88a198be52fc1.JPG",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err = mpClaim.Create(CTX)
+	assert.NoError(t, err)
+
+	err = mpClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+
 	arg1 := Argument{
 		TargetClaimID: &claim.ID,
 		Title:         "Let's create a new argument",
@@ -284,6 +297,12 @@ func TestClaimVersion(t *testing.T) {
 	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
 	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
 
+	premiseEdges, err = mpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+
 	// Version the claim
 	origClaimKey := claim.ArangoKey()
 
@@ -339,6 +358,13 @@ func TestClaimVersion(t *testing.T) {
 	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
 	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
 
+	premiseEdges, err = mpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+	assert.Nil(t, premiseEdges[0].DeletedAt)
+
 	// Verify that the old edges were deleted
 	premiseEdges, err = origClaim.PremiseEdges(CTX)
 	assert.NoError(t, err)
@@ -366,6 +392,18 @@ func TestClaimVersion(t *testing.T) {
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
 	assert.Equal(t, origClaim.ArangoID(), bces[0].To)
 	assert.NotNil(t, bces[0].DeletedAt)
+
+	olderMpClaim := Claim{}
+	olderMpClaim.Key = mpClaim.Key
+	olderMpClaim.QueryAt = origClaim.DeletedAt
+	err = olderMpClaim.Load(CTX)
+	assert.NoError(t, err)
+	premiseEdges, err = olderMpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, olderMpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, origClaim.ArangoID(), premiseEdges[0].To)
+	assert.NotNil(t, premiseEdges[0].DeletedAt)
 }
 
 func TestLoadClaimAtDate(t *testing.T) {
@@ -424,7 +462,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-2 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -433,7 +471,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-25 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -443,14 +481,14 @@ func TestLoadClaimAtDate(t *testing.T) {
 	// TODO: Throw a NotFoundError?
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-48 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, "", lookup.ArangoKey())
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = firstCreatedAt
+	lookup.QueryAt = &firstCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -458,7 +496,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = secondCreatedAt
+	lookup.QueryAt = &secondCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -466,7 +504,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
-	lookup.CreatedAt = thirdCreatedAt
+	lookup.QueryAt = &thirdCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.Nil(t, lookup.DeletedAt)
