@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: gruffdebate/server:latest
+          image: gruffdebate/server:$COMMIT_SHA1
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
