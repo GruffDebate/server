@@ -1,8 +1,8 @@
 package api
 
 import (
-	"net/http"
 	"fmt"
+	"net/http"
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/labstack/echo"
@@ -47,7 +47,7 @@ func SignIn(c echo.Context) error {
 	if err := user.Load(ctx); err != nil {
 		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
-	
+
 	if ok, _ := verifyPassword(user, u.Password); ok {
 		t, err := TokenForUser(user)
 		if err != nil {
@@ -79,7 +79,7 @@ func ChangePassword(c echo.Context) error {
 		Email       string `json:"email"`
 		OldPassword string `json:"oldpassword"`
 		NewPassword string `json:"newpassword"`
-	}	
+	}
 
 	cp := new(customPassword)
 	if err := c.Bind(&cp); err != nil {
@@ -132,28 +132,3 @@ func UpdateMe(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, user)
 }
-
-/*
-func ListClaimsUser(c echo.Context) error {
-	ctx := ServerContext(c)
-	db := ctx.Database
-
-	claims := []gruff.Claim{}
-
-	db = BasicJoins(ctx, c, db)
-	db = db.Where("created_by_id = ?", ctx.UserContext.ID)
-	db = BasicPaging(ctx, c, db)
-
-	err := db.Find(&claims).Error
-	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
-	}
-
-	if ctx.Payload["ct"] != nil {
-		ctx.Payload["results"] = claims
-		return c.JSON(http.StatusOK, ctx.Payload)
-	}
-
-	return c.JSON(http.StatusOK, claims)
-}
-*/

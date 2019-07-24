@@ -48,7 +48,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.PUT("/users/changePassword", ChangePassword)
 	//private.DELETE("/users/:id", Delete)
 
-	// private.GET("/users/claims", ListClaimsUser)
+	private.GET("/users/claims", List)
 
 	public.GET("/arguments", List)
 	public.GET("/arguments/:id", GetArgument)
@@ -127,7 +127,6 @@ func (mc ProductionMiddlewareConfigurer) ConfigureDefaultApiMiddleware(root *ech
 func (mc ProductionMiddlewareConfigurer) ConfigurePublicApiMiddleware(root *echo.Echo) *echo.Group {
 	api := mc.ConfigureDefaultApiMiddleware(root)
 	public := api.Group("/api")
-	root.Use(middleware.Gzip())
 	public.Use(Session)
 
 	return public
@@ -136,7 +135,6 @@ func (mc ProductionMiddlewareConfigurer) ConfigurePublicApiMiddleware(root *echo
 func (mc ProductionMiddlewareConfigurer) ConfigurePrivateApiMiddleware(root *echo.Echo) *echo.Group {
 	api := mc.ConfigureDefaultApiMiddleware(root)
 	private := api.Group("/api")
-	private.Use(middleware.Gzip())
 	private.Use(Session)
 
 	return private

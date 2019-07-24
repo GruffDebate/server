@@ -165,6 +165,10 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffErr
 		tag := f.Tag
 		fKey := support.JsonName(f)
 		vField := v.Field(i)
+		if jsonKey == "_key" {
+			return nil
+		}
+
 		if fKey == jsonKey {
 			if tag.Get("settable") == "false" {
 				return NewPermissionError("field is unsettable", data)
@@ -190,21 +194,54 @@ func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) Gruf
 	return nil
 }
 
+// func SetKey(item interface{}, key string) GruffError {
+// 	v := reflect.ValueOf(item)
+// 	if v.Kind() == reflect.Ptr {
+// 		if v.IsNil() {
+// 			return NewBusinessError("Cannot set value on nil item")
+// 		}
+// 		v = v.Elem()
+// 	}
+
+// 	fv := v.FieldByName("Key")
+// 	if fv.Kind() != reflect.String {
+// 		return NewServerError("Item does not have a Key field")
+// 	}
+
+// 	fv.SetString(key)
+// 	return nil
+// }
+
 func SetKey(item interface{}, key string) GruffError {
 	v := reflect.ValueOf(item)
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
 			return NewBusinessError("Cannot set value on nil item")
 		}
-		v = v.Elem()
+		v = reflect.ValueOf(item).Elem()
 	}
 
-	fv := v.FieldByName("Key")
-	if fv.Kind() != reflect.String {
-		return NewServerError("Item does not have a Key field")
+	if v.Kind() == reflect.Ptr {
+		v = reflect.ValueOf(item).Elem()
+		fv := v.FieldByName("Key")
+		if fv.Kind() != reflect.String {
+			return NewServerError("Item does not have a Key field")
+		}
+
+		fv.SetString(key)
+	} else {
+		fmt.Println("oi1")
+		t := v.Type()
+		keyField, _ := KeyField(t)
+		f := v.FieldByName(keyField.Name)
+		if f.Type().Kind() == reflect.Ptr {
+			f.Set(reflect.ValueOf(&key))
+		} else {
+			f.Set(reflect.ValueOf(key))
+		}
+		fmt.Println(f)
 	}
 
-	fv.SetString(key)
 	return nil
 }
 
@@ -245,6 +282,20 @@ func UserIDField(t reflect.Type) (field *reflect.StructField, dbFieldName string
 	if found {
 		field = &f
 		dbFieldName = "creator"
+	}
+	return
+}
+
+func KeyField(t reflect.Type) (field *reflect.StructField, dbFieldName string) {
+	elemT := t
+	if elemT.Kind() == reflect.Ptr {
+		elemT = elemT.Elem()
+	}
+
+	f, found := elemT.FieldByName("Key")
+	if found {
+		field = &f
+		dbFieldName = "key"
 	}
 	return
 }

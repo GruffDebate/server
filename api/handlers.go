@@ -17,17 +17,23 @@ func List(c echo.Context) error {
 	params := item.DefaultQueryParameters()
 	params = params.Merge(GetListParametersFromRequest(c))
 
-	items, err := gruff.ListArangoObjects(ctx, ctx.Type, gruff.DefaultListQuery(item, params), map[string]interface{}{})
+	userID := ActiveUserID(c, ctx)
+	filters := map[string]interface{}{}
+	var query string
+	if userID != "" {
+		filters["creator"] = userID
+		query = gruff.DefaultListQueryForUser(item, params)
+	} else {
+		query = gruff.DefaultListQuery(item, params)
+	}
+
+	items, err := gruff.ListArangoObjects(ctx, ctx.Type, query, filters)
 	if err != nil {
 		return AddGruffError(ctx, c, err)
 	}
 
-	if ctx.Payload["ct"] != nil {
-		ctx.Payload["results"] = items
-		return c.JSON(http.StatusOK, ctx.Payload)
-	}
-
-	return c.JSON(http.StatusOK, items)
+	ctx.Payload["results"] = items
+	return c.JSON(http.StatusOK, ctx.Payload)
 }
 
 func Create(c echo.Context) error {
@@ -74,7 +80,10 @@ func Update(c echo.Context) error {
 	}
 
 	item := reflect.New(ctx.Type).Interface()
-	if err := gruff.SetKey(&item, key); err != nil {
+
+	// TODO check if end is null
+
+	if err := gruff.SetKey(item, key); err != nil {
 		return AddGruffError(ctx, c, err)
 	}
 

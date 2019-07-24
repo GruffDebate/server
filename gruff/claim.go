@@ -97,7 +97,6 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	// TODO: validate for create
 	c.PrepareForCreate(ctx.UserContext)
 
-	fmt.Println("oi-model")
 	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
 		return NewServerError(dberr.Error())
 	}
@@ -163,7 +162,6 @@ func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Gruff
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
-
 	}
 
 	// When a Claim is updated, it creates a new version
@@ -760,6 +758,6 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 
 func (c Claim) QueryForTopLevelClaims(params ArangoQueryParameters) string {
 	params = c.DefaultQueryParameters().Merge(params)
-	query := "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0"
+	query := "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null"
 	return params.Apply(query)
 }

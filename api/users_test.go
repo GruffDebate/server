@@ -46,7 +46,7 @@ func TestLogin(t *testing.T) {
 	createUser("test1", "test1", "test1@test1.com")
 
 	u := map[string]interface{}{
-		"email": "test1@test1.com",
+		"email":    "test1@test1.com",
 		"password": "123456",
 	}
 
@@ -56,6 +56,75 @@ func TestLogin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.Code)
 }
 
+func TestListClaimsByUser(t *testing.T) {
+	setup()
+	defer teardown()
+
+	u1 := createUser("test1", "test1", "test1@test1.com")
+	u1.Load(CTX)
+
+	r := New(tokenForTestUser(u1))
+
+	c1 := gruff.Claim{
+		Title:        "Let's create a new claim 1",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+	c2 := gruff.Claim{
+		Title:        "Let's create a new claim 2",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+	c3 := gruff.Claim{
+		Title:        "Let's create a new claim 3",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+	c4 := gruff.Claim{
+		Title:        "Let's create a new claim 4",
+		Description:  "Claims in general should be true or false",
+		Negation:     "Let's not...",
+		Question:     "Should we create a new Claim?",
+		Note:         "He who notes is a note taker",
+		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
+		MultiPremise: true,
+		PremiseRule:  gruff.PREMISE_RULE_ALL,
+	}
+
+	c4.Create(CTX)
+
+	CTX.UserContext = u1
+	c1.Create(CTX)
+	c2.Create(CTX)
+	c3.Create(CTX)
+
+	c1.Load(CTX)
+	c2.Load(CTX)
+	c3.Load(CTX)
+	c4.Load(CTX)
+
+	// expectedResults, _ := json.Marshal([]gruff.Claim{c3, c2, c1})
+
+	r.GET("/api/users/claims")
+	res, _ := r.Run(Router())
+	// assert.Equal(t, string(expectedResults), res.Body.String())
+	assert.Equal(t, http.StatusOK, res.Code)
+}
 
 /*
 func TestListUsers(t *testing.T) {
@@ -75,48 +144,7 @@ func TestListUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.Code)
 }
 
-func TestListClaimsByUser(t *testing.T) {
-	setup()
-	defer teardown()
 
-	u1 := createUser("test1", "test1", "test1@test1.com")
-
-	r := New(tokenForTestUser(u1))
-
-	c1 := gruff.Claim{
-		Identifier:  gruff.Identifier{CreatedByID: u1.ArangoID()},
-		Title:       "Claim 1",
-		Description: "Claim 1",
-		Truth:       0.23094,
-	}
-	c2 := gruff.Claim{
-		Identifier:  gruff.Identifier{CreatedByID: u1.ArangoID()},
-		Title:       "Claim 2",
-		Description: "Claim 2",
-		Truth:       0.23094,
-	}
-	c3 := gruff.Claim{
-		Title:       "Claim 3",
-		Description: "Claim 3",
-		Truth:       0.25094,
-	}
-	c4 := gruff.Claim{
-		Title:       "Claim 4",
-		Description: "Claim 4",
-		Truth:       0.26094,
-	}
-	c1.Create(CTX)
-	c2.Create(CTX)
-	c3.Create(CTX)
-	c4.Create(CTX)
-
-	expectedResults, _ := json.Marshal([]gruff.Claim{c1, c2})
-
-	r.GET("/api/users/claims")
-	res, _ := r.Run(Router())
-	assert.Equal(t, string(expectedResults), res.Body.String())
-	assert.Equal(t, http.StatusOK, res.Code)
-}
 
 func TestListUsersPagination(t *testing.T) {
 	setup()

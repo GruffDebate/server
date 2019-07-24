@@ -140,14 +140,19 @@ func (aqp ArangoQueryParameters) Apply(query string) string {
 // Default Finders
 
 func DefaultListQuery(obj ArangoObject, params ArangoQueryParameters) string {
-	query := fmt.Sprintf("FOR obj IN %s", obj.CollectionName())
+	query := fmt.Sprintf("FOR obj IN %s FILTER obj.end == null", obj.CollectionName())
+	return params.Apply(query)
+}
+
+func DefaultListQueryForUser(obj ArangoObject, params ArangoQueryParameters) string {
+	query := fmt.Sprintf("FOR obj IN %s FILTER obj.creator == @creator AND obj.end == null", obj.CollectionName())
 	return params.Apply(query)
 }
 
 func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars map[string]interface{}) ([]interface{}, GruffError) {
 	db := ctx.Arango.DB
 
-	var objs []interface{}
+	objs := []interface{}{}
 
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
