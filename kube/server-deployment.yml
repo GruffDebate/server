@@ -18,6 +18,15 @@ spec:
       containers:
         - name: server
           image: gruffdebate/server:$COMMIT_SHA1
+          env:
+            - name: GRUFF_ENV
+              value: "production"
+            - name: ARANGO_ENDPOINT
+              value: "http://67.207.87.34:8529"
+            - name: ARANGO_USER
+              value: "root"
+            - name: ARANGO_PASS
+              value: "ha2WF4qdHc"
           ports:
             - containerPort: 8080
               name: http
