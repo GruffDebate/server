@@ -1,16 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: server
-  namespace: default
-  labels:
-    app: server
+  name: server-loadbalancer
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
-    - port: 8080
+    - port: 80
       targetPort: 8080
-      protocol: TCP
       name: http
+    - port: 443
+      targetPort: 443
+      name: https
   selector:
     app: server
