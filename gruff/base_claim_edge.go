@@ -38,7 +38,7 @@ func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	bc.PrepareForCreate(ctx.UserContext)
+	bc.PrepareForCreate(ctx)
 
 	_, aerr := col.CreateDocument(ctx.Context, bc)
 	if aerr != nil {
@@ -48,7 +48,7 @@ func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
 }
 
 func (bc *BaseClaimEdge) Delete(ctx *ServerContext) GruffError {
-	bc.PrepareForDelete()
+	bc.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": bc.DeletedAt,
 	}

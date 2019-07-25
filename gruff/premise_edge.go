@@ -39,7 +39,7 @@ func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	p.PrepareForCreate(ctx.UserContext)
+	p.PrepareForCreate(ctx)
 
 	_, aerr := col.CreateDocument(ctx.Context, p)
 	if aerr != nil {
@@ -48,6 +48,7 @@ func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
+// TODO: Preserve history...
 func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) GruffError {
 	col, err := ctx.Arango.CollectionFor(p)
 	if err != nil {
@@ -63,7 +64,7 @@ func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) GruffError {
 }
 
 func (p *PremiseEdge) Delete(ctx *ServerContext) GruffError {
-	p.PrepareForDelete()
+	p.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": p.DeletedAt,
 	}

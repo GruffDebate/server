@@ -54,11 +54,17 @@ func TestListArangoObjects(t *testing.T) {
 	c5 := Claim{Title: "If not more..."}
 	c6 := Claim{Title: "Ok, yeah. Let's just do one more..."}
 	c1.Create(CTX)
+	CTX.RequestAt = nil
 	c2.Create(CTX)
+	CTX.RequestAt = nil
 	c3.Create(CTX)
+	CTX.RequestAt = nil
 	c4.Create(CTX)
+	CTX.RequestAt = nil
 	c5.Create(CTX)
+	CTX.RequestAt = nil
 	c6.Create(CTX)
+	CTX.RequestAt = nil
 
 	query := DefaultListQuery(Claim{}, DEFAULT_QUERY_PARAMETERS.Merge(ArangoQueryParameters{Limit: support.IntPtr(5)}))
 	assert.Equal(t, "FOR obj IN claims SORT obj.start DESC LIMIT 0, 5 RETURN obj", query)

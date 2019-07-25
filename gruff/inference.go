@@ -38,7 +38,7 @@ func (i *Inference) Create(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	i.PrepareForCreate(ctx.UserContext)
+	i.PrepareForCreate(ctx)
 
 	_, aerr := col.CreateDocument(ctx.Context, i)
 	if aerr != nil {
@@ -48,7 +48,7 @@ func (i *Inference) Create(ctx *ServerContext) GruffError {
 }
 
 func (i *Inference) Delete(ctx *ServerContext) GruffError {
-	i.PrepareForDelete()
+	i.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": i.DeletedAt,
 	}

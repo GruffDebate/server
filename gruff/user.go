@@ -122,7 +122,7 @@ func (u *User) Create(ctx *ServerContext) GruffError {
 
 	}
 
-	u.PrepareForCreate(ctx.UserContext)
+	u.PrepareForCreate(ctx)
 
 	if err := u.ValidateForCreate(); err != nil {
 		return err
@@ -202,6 +202,13 @@ func (u *User) Load(ctx *ServerContext) GruffError {
 		}
 	}
 
+	return nil
+}
+
+func (u *User) LoadFull(ctx *ServerContext) GruffError {
+	if err := u.Load(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 

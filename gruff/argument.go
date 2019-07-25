@@ -160,7 +160,7 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 		}
 	}
 
-	a.PrepareForCreate(ctx.UserContext)
+	a.PrepareForCreate(ctx)
 
 	if _, dberr := col.CreateDocument(ctx.Context, a); dberr != nil {
 		ctx.Rollback()
@@ -249,6 +249,14 @@ func (a *Argument) Load(ctx *ServerContext) GruffError {
 	return nil
 }
 
+// TODO
+func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
+	if err := a.Load(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Business methods
 
 func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
@@ -262,6 +270,40 @@ func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
 		return err
 	}
 	return nil
+}
+
+func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
+	db := ctx.Arango.DB
+	args := []Argument{}
+
+	bindVars := map[string]interface{}{
+		"arg": a.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._to == a._id
+                                      AND obj._from == @arg
+                                   %s
+                                   RETURN a`,
+		Inference{}.CollectionName(),
+		Argument{}.CollectionName(),
+		a.DateFilter(bindVars),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return args, NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	for cursor.HasMore() {
+		arg := Argument{}
+		_, err := cursor.ReadDocument(ctx.Context, &arg)
+		if err != nil {
+			return args, NewServerError(err.Error())
+		}
+		args = append(args, arg)
+	}
+
+	return args, nil
 }
 
 func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
@@ -310,8 +352,62 @@ func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) 
 	return edge, nil
 }
 
+// Deleter
+
+func (a *Argument) Delete(ctx *ServerContext) GruffError {
+	a.PrepareForDelete(ctx)
+	patch := map[string]interface{}{
+		"end": a.DeletedAt,
+	}
+	col, err := ctx.Arango.CollectionFor(a)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.UpdateDocument(ctx.Context, a.ArangoKey(), patch)
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
+	// Find all edges going to old ver, make copy to new ver
+	inference, err := a.Inference(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if err := inference.Delete(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Base Claim edge
+	baseClaimEdge, err := a.BaseClaimEdge(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if err := baseClaimEdge.Delete(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Arguments
+	// WARNING: could create an infinite loop of deletions
+	args, err := a.Arguments(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, arg := range args {
+		if err := arg.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	return nil
+}
+
 // TODO: Create method should set default Strength to 0.5
-// TODO: implement Delete
 // TODO: implement curator permissions
 
 /*
@@ -511,38 +607,6 @@ func (a Argument) ScoreRU(ctx *ServerContext) float64 {
 	return strength * truth
 }
 */
-
-func (a *Argument) Arguments(ctx *ServerContext) (proArgs []Argument, conArgs []Argument) {
-	proArgs = a.ProArgs
-	conArgs = a.ConArgs
-
-	if len(proArgs) == 0 {
-		/*
-			ctx.Database.
-				Preload("Claim").
-				Scopes(OrderByBestArgument).
-				Where("type = ?", ARGUMENT_FOR).
-				Where("target_argument_id = ?", a.ID).
-				Find(&proArgs)
-		*/
-	}
-
-	if len(conArgs) == 0 {
-		/*
-			ctx.Database.
-				Preload("Claim").
-				Scopes(OrderByBestArgument).
-				Where("type = ?", ARGUMENT_AGAINST).
-				Where("target_argument_id = ?", a.ID).
-				Find(&conArgs)
-		*/
-	}
-
-	a.ProArgs = proArgs
-	a.ConArgs = conArgs
-
-	return
-}
 
 // Scopes
 

@@ -19,10 +19,10 @@ type Model struct {
 	DeletedAt *time.Time `json:"end" settable:"false"`
 }
 
-func (m *Model) PrepareForCreate(u User) {
+func (m *Model) PrepareForCreate(ctx *ServerContext) {
 	m.Key = uuid.New().String()
-	m.CreatedAt = time.Now()
-	m.UpdatedAt = time.Now()
+	m.CreatedAt = ctx.RequestTime()
+	m.UpdatedAt = ctx.RequestTime()
 	return
 }
 
@@ -44,10 +44,18 @@ type ServerContext struct {
 	Path        string
 	Endpoint    string
 	RequestID   string
+	RequestAt   *time.Time
 }
 
 func (ctx ServerContext) Rollback() GruffError {
 	return ctx.Arango.Rollback()
+}
+
+func (ctx *ServerContext) RequestTime() time.Time {
+	if ctx.RequestAt == nil {
+		ctx.RequestAt = support.TimePtr(time.Now())
+	}
+	return *ctx.RequestAt
 }
 
 func ModelToJson(model interface{}) string {

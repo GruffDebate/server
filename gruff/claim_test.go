@@ -187,11 +187,12 @@ func TestClaimVersion(t *testing.T) {
 		Question:     "Do you dare to doubt me?",
 		Note:         "This Claim is all about doubting. No links are going here.",
 		Image:        "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
-		MultiPremise: true,
-		PremiseRule:  PREMISE_RULE_ALL,
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
 	}
 	err := claim.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	premiseClaim1 := Claim{
 		Title:        "I am the one who is daring you to doubt mean",
@@ -200,6 +201,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = claim.AddPremise(CTX, &premiseClaim1)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	premiseClaim2 := Claim{
 		Title:        "Since it is I that am daring you, you therefore must not doubt",
@@ -208,6 +210,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = claim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	distantClaim := Claim{
 		Title:       "So very far away",
@@ -215,6 +218,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = distantClaim.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	mpClaim := Claim{
 		Title:        "This is an MP that uses the main claim",
@@ -225,9 +229,11 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = mpClaim.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	err = mpClaim.AddPremise(CTX, &claim)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	arg1 := Argument{
 		TargetClaimID: &claim.ID,
@@ -236,6 +242,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = arg1.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	arg2 := Argument{
 		TargetClaimID: &claim.ID,
@@ -244,6 +251,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = arg2.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	argPC1 := Argument{
 		TargetClaimID: &premiseClaim1.ID,
@@ -251,6 +259,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = argPC1.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	argDC1 := Argument{
 		TargetClaimID: &distantClaim.ID,
@@ -259,6 +268,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = argDC1.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	arg1arg := Argument{
 		TargetArgumentID: &arg1.ID,
@@ -267,6 +277,7 @@ func TestClaimVersion(t *testing.T) {
 	}
 	err = arg1arg.Create(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	// Next check edges, then version and recheck everything
 	premiseEdges, err := claim.PremiseEdges(CTX)
@@ -304,11 +315,14 @@ func TestClaimVersion(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
 
 	// Version the claim
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
 	origClaimKey := claim.ArangoKey()
 
 	claim.Title = "New Title"
 	err = claim.version(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	err = claim.Load(CTX)
 	assert.NoError(t, err)
@@ -395,7 +409,7 @@ func TestClaimVersion(t *testing.T) {
 
 	olderMpClaim := Claim{}
 	olderMpClaim.Key = mpClaim.Key
-	olderMpClaim.QueryAt = origClaim.DeletedAt
+	olderMpClaim.DeletedAt = origClaim.DeletedAt
 	err = olderMpClaim.Load(CTX)
 	assert.NoError(t, err)
 	premiseEdges, err = olderMpClaim.PremiseEdges(CTX)
@@ -780,4 +794,235 @@ func TestClaimQueryForTopLevelClaims(t *testing.T) {
 
 	params.Offset = nil
 	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 SORT obj._id LIMIT 0, 10 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+}
+
+func TestClaimLoadFull(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "This is the Claim LoadAll test claim",
+		Description:  "Load all the things!",
+		Negation:     "Don't load all the things.",
+		Question:     "Load all the THINGS? Load ALL the things? LOAD all the things?",
+		Note:         "This Claim needs to be all loaded.",
+		Image:        "https://i.chzbgr.com/full/6434679808/h4ADBDEA5/",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	premiseClaim1 := Claim{
+		Title:        "First premise for the Claim LoadAll dude",
+		Description:  "The person that is daring you to doubt me being me",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim1)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	premiseClaim2 := Claim{
+		Title:        "I am the second Claim LoadAll premise. I MUST be true.",
+		Description:  "I am undoubtable",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	distantClaim := Claim{
+		Title:       "So very far away from Claim LoadAll",
+		Description: "So distant, you cannot see me.",
+	}
+	err = distantClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	mpClaim := Claim{
+		Title:        "This is an MP that uses the main LoadAll claim",
+		Description:  "Not military police, mind you",
+		Image:        "https://sgws3productimages.azureedge.net/sgwproductimages/images/33/4-5-2019/35ae88a198be52fc1.JPG",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err = mpClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = mpClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "All?",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Load ALL!",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg3 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Do it ALL!",
+		Pro:           true,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argPC1 := Argument{
+		TargetClaimID: &premiseClaim1.ID,
+		Title:         "Let's create a new argument for the Premise of the claim LoadAll",
+	}
+	err = argPC1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argDC1 := Argument{
+		TargetClaimID: &distantClaim.ID,
+		ClaimID:       claim.ID,
+		Title:         "Distant LoadAll claim.",
+	}
+	err = argDC1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1arg := Argument{
+		TargetArgumentID: &arg1.ID,
+		Title:            "Do it...ALLLLL!",
+		Pro:              false,
+	}
+	err = arg1arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Simple Load
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 0, len(claim.PremiseClaims))
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 0, len(claim.ConArgs))
+
+	// Load All
+	premiseClaim1.Load(CTX)
+	premiseClaim2.Load(CTX)
+	arg1.Load(CTX)
+	arg2.Load(CTX)
+	arg3.Load(CTX)
+	var carg1, carg2, carg3 Claim
+	carg1.ID = arg1.ClaimID
+	carg2.ID = arg2.ClaimID
+	carg3.ID = arg3.ClaimID
+	carg1.Load(CTX)
+	carg2.Load(CTX)
+	carg3.Load(CTX)
+	arg1.Claim = &carg1
+	arg2.Claim = &carg2
+	arg3.Claim = &carg3
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 2, len(claim.PremiseClaims))
+	assert.Equal(t, 2, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, premiseClaim1, claim.PremiseClaims[0])
+	assert.Equal(t, premiseClaim2, claim.PremiseClaims[1])
+	assert.Equal(t, arg1, claim.ProArgs[0])
+	assert.Equal(t, arg3, claim.ProArgs[1])
+	assert.Equal(t, arg2, claim.ConArgs[0])
+
+	err = arg1.Delete(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	err = premiseClaim1.Delete(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg1.Load(CTX)
+	premiseClaim1.Load(CTX)
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 1, len(claim.PremiseClaims))
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, premiseClaim2, claim.PremiseClaims[0])
+	assert.Equal(t, arg3, claim.ProArgs[0])
+	assert.Equal(t, arg2, claim.ConArgs[0])
+
+	// Previous points in time
+	claim.QueryAt = &arg1arg.CreatedAt
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 2, len(claim.PremiseClaims))
+	assert.Equal(t, 2, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, premiseClaim1, claim.PremiseClaims[0])
+	assert.Equal(t, premiseClaim2, claim.PremiseClaims[1])
+	assert.Equal(t, arg1, claim.ProArgs[0])
+	assert.Equal(t, arg3, claim.ProArgs[1])
+	assert.Equal(t, arg2, claim.ConArgs[0])
+
+	claim.QueryAt = &arg1.CreatedAt
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 2, len(claim.PremiseClaims))
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, 0, len(claim.ConArgs))
+	assert.Equal(t, premiseClaim1, claim.PremiseClaims[0])
+	assert.Equal(t, premiseClaim2, claim.PremiseClaims[1])
+	assert.Equal(t, arg1, claim.ProArgs[0])
+
+	claim.QueryAt = &claim.CreatedAt
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 0, len(claim.PremiseClaims))
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 0, len(claim.ConArgs))
+
+	premiseClaim3 := Claim{
+		Title:        "You can never have enough premises in a LoadAll test",
+		Description:  "At least, that's my claim...",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim3)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	premiseClaim3.Load(CTX)
+
+	claim.QueryAt = nil
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 2, len(claim.PremiseClaims))
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, premiseClaim2, claim.PremiseClaims[0])
+	assert.Equal(t, premiseClaim3, claim.PremiseClaims[1])
+	assert.Equal(t, arg3, claim.ProArgs[0])
+	assert.Equal(t, arg2, claim.ConArgs[0])
 }

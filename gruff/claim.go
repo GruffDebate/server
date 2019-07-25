@@ -2,6 +2,7 @@ package gruff
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/GruffDebate/server/support"
 	arango "github.com/arangodb/go-driver"
@@ -34,21 +35,22 @@ const PREMISE_RULE_ANY_TWO int = 3
 
 type Claim struct {
 	Identifier
-	Title        string     `json:"title" valid:"length(3|1000)"`
-	Negation     string     `json:"negation"`
-	Question     string     `json:"question"`
-	Description  string     `json:"desc" valid:"length(3|4000)"`
-	Note         string     `json:"note"`
-	Image        string     `json:"img,omitempty"`
-	MultiPremise bool       `json:"mp"`
-	PremiseRule  int        `json:"mprule"`
-	Truth        float64    `json:"truth"`   // Average score from direct opinions
-	TruthRU      float64    `json:"truthRU"` // Average score rolled up from argument totals
-	ProArgs      []Argument `json:"proargs"`
-	ConArgs      []Argument `json:"conargs"`
-	Links        []Link     `json:"links,omitempty"`
-	Contexts     []Context  `json:"contexts,omitempty"`
-	ContextIDs   []uint64   `json:"contextIds,omitempty"`
+	Title         string     `json:"title" valid:"length(3|1000)"`
+	Negation      string     `json:"negation"`
+	Question      string     `json:"question"`
+	Description   string     `json:"desc" valid:"length(3|4000)"`
+	Note          string     `json:"note"`
+	Image         string     `json:"img,omitempty"`
+	MultiPremise  bool       `json:"mp"`
+	PremiseRule   int        `json:"mprule"`
+	Truth         float64    `json:"truth"`   // Average score from direct opinions
+	TruthRU       float64    `json:"truthRU"` // Average score rolled up from argument totals
+	PremiseClaims []Claim    `json:"premises,omitempty"`
+	ProArgs       []Argument `json:"proargs"`
+	ConArgs       []Argument `json:"conargs"`
+	Links         []Link     `json:"links,omitempty"`
+	Contexts      []Context  `json:"contexts,omitempty"`
+	ContextIDs    []uint64   `json:"contextIds,omitempty"`
 }
 
 // ArangoObject interface
@@ -76,6 +78,9 @@ func (c Claim) ValidateForCreate() GruffError {
 }
 
 func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if c.DeletedAt != nil {
+		return NewBusinessError("A Claim that has already been deleted, or has a newer version, cannot be modified.")
+	}
 	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
 		return err
 	}
@@ -95,7 +100,7 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	}
 
 	// TODO: validate for create
-	c.PrepareForCreate(ctx.UserContext)
+	c.PrepareForCreate(ctx)
 
 	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
 		return NewServerError(dberr.Error())
@@ -152,6 +157,46 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 	return nil
 }
 
+func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
+	if err := c.Load(ctx); err != nil {
+		return err
+	}
+
+	premises, err := c.Premises(ctx)
+	if err != nil {
+		return err
+	}
+	c.PremiseClaims = premises
+
+	args, err := c.Arguments(ctx)
+	if err != nil {
+		return err
+	}
+
+	var proArgs, conArgs []Argument
+	for _, arg := range args {
+		bc := Claim{}
+		bc.ID = arg.ClaimID
+		bc.QueryAt = c.QueryAt
+		if err := bc.Load(ctx); err != nil {
+			return err
+		}
+		bc.QueryAt = nil
+		arg.Claim = &bc
+
+		if arg.Pro {
+			proArgs = append(proArgs, arg)
+		} else {
+			conArgs = append(conArgs, arg)
+		}
+	}
+
+	c.ProArgs = proArgs
+	c.ConArgs = conArgs
+
+	return nil
+}
+
 // Updater
 
 func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
@@ -185,7 +230,7 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	c.PrepareForCreate(ctx.UserContext)
+	c.PrepareForCreate(ctx)
 	if err := c.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
@@ -270,7 +315,9 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 }
 
 func (c *Claim) Delete(ctx *ServerContext) GruffError {
-	c.PrepareForDelete()
+	// TODO: validate for delete, including having no anythig
+
+	c.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": c.DeletedAt,
 	}
@@ -304,26 +351,27 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	}
 
 	// Arguments
-	inferences, err := c.Inferences(ctx)
+	// WARNING: could create an infinite loop of deletions
+	args, err := c.Arguments(ctx)
 	if err != nil {
 		ctx.Rollback()
 		return err
 	}
-	for _, edge := range inferences {
-		if err := edge.Delete(ctx); err != nil {
+	for _, arg := range args {
+		if err := arg.Delete(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
 	}
 
 	// Base Claim edges
-	baseClaimEdges, err := c.BaseClaimEdges(ctx)
+	args, err = c.ArgumentsBasedOnThisClaim(ctx)
 	if err != nil {
 		ctx.Rollback()
 		return err
 	}
-	for _, edge := range baseClaimEdges {
-		if err := edge.Delete(ctx); err != nil {
+	for _, arg := range args {
+		if err := arg.Delete(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -336,7 +384,13 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 		return err
 	}
 	for _, edge := range premiseEdges {
-		if err := edge.Delete(ctx); err != nil {
+		otherClaim := Claim{}
+		otherClaim.Key = edge.From[len(otherClaim.CollectionName())+1:]
+		if err := otherClaim.Load(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err := otherClaim.RemovePremise(ctx, c.ArangoID()); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -351,6 +405,10 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 // Business methods
 
 func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
 	edge := Inference{
 		From: c.ArangoID(),
 		To:   a.ArangoID(),
@@ -369,6 +427,11 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		return NewServerError("Premise is nil")
 	}
 
+	c.QueryAt = nil
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
 	if premise.Key == "" {
 		if err := premise.Create(ctx); err != nil {
 			ctx.Rollback()
@@ -377,13 +440,17 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	}
 
 	if !c.MultiPremise {
-		c.MultiPremise = true
-		c.PremiseRule = PREMISE_RULE_ALL
+		updates := map[string]interface{}{
+			"mp":     true,
+			"mprule": PREMISE_RULE_ALL,
+		}
 
-		if err := c.version(ctx); err != nil {
+		if err := c.Update(ctx, updates); err != nil {
 			ctx.Rollback()
 			return err
 		}
+		c.MultiPremise = true
+		c.PremiseRule = PREMISE_RULE_ALL
 	}
 
 	// TODO: locking...
@@ -406,6 +473,66 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	return nil
 }
 
+func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
+	if !c.MultiPremise {
+		return NewBusinessError("You cannot remove a premise from a Claim that isn't multi-premise.")
+	}
+
+	premiseEdges, err := c.PremiseEdges(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	if !strings.HasPrefix(premiseId, c.CollectionName()) {
+		// The ID is a generic ID, not an ArangoID
+		premise := Claim{}
+		premise.ID = premiseId
+		if err := premise.Load(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		premiseId = premise.ArangoID()
+	}
+
+	var removed bool
+	for _, edge := range premiseEdges {
+		if edge.To == premiseId {
+			if err := edge.Delete(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
+			removed = true
+		} else if removed {
+			if err := edge.UpdateOrder(ctx, edge.Order-1); err != nil {
+				ctx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// TODO: make sure that a new version DOESN'T have the deleted edge
+	if len(premiseEdges) == 1 {
+		updates := map[string]interface{}{
+			"mp":     false,
+			"mprule": PREMISE_RULE_NONE,
+		}
+
+		if err := c.Update(ctx, updates); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		c.MultiPremise = false
+		c.PremiseRule = PREMISE_RULE_NONE
+	}
+
+	return nil
+}
+
 func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 	db := ctx.Arango.DB
 	args := []Argument{}
@@ -418,8 +545,43 @@ func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
                                    FILTER obj._to == a._id
                                       AND obj._from == @claim
                                    %s
+                                   SORT a.start ASC
                                    RETURN a`,
 		Inference{}.CollectionName(),
+		Argument{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return args, NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	for cursor.HasMore() {
+		arg := Argument{}
+		_, err := cursor.ReadDocument(ctx.Context, &arg)
+		if err != nil {
+			return args, NewServerError(err.Error())
+		}
+		args = append(args, arg)
+	}
+
+	return args, nil
+}
+
+func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffError) {
+	db := ctx.Arango.DB
+	args := []Argument{}
+
+	bindVars := map[string]interface{}{
+		"claim": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._from == a._id
+                                      AND obj._to == @claim
+                                   %s
+                                   RETURN a`,
+		BaseClaimEdge{}.CollectionName(),
 		Argument{}.CollectionName(),
 		c.DateFilter(bindVars),
 	)
@@ -444,32 +606,34 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
 	db := ctx.Arango.DB
 	premises := []Claim{}
 
-	bindVars := map[string]interface{}{
-		"claim": c.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s
+	if c.MultiPremise {
+		bindVars := map[string]interface{}{
+			"claim": c.ArangoID(),
+		}
+		query := fmt.Sprintf(`FOR obj IN %s
                                  FOR c IN %s
                                    FILTER obj._to == c._id
                                       AND obj._from == @claim
                                    %s
                                    SORT obj.order
                                    RETURN c`,
-		PremiseEdge{}.CollectionName(),
-		Claim{}.CollectionName(),
-		c.DateFilter(bindVars),
-	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	if err != nil {
-		return premises, NewServerError(err.Error())
-	}
-	defer cursor.Close()
-	for cursor.HasMore() {
-		claim := Claim{}
-		_, err := cursor.ReadDocument(ctx.Context, &claim)
+			PremiseEdge{}.CollectionName(),
+			Claim{}.CollectionName(),
+			c.DateFilter(bindVars),
+		)
+		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
 			return premises, NewServerError(err.Error())
 		}
-		premises = append(premises, claim)
+		defer cursor.Close()
+		for cursor.HasMore() {
+			claim := Claim{}
+			_, err := cursor.ReadDocument(ctx.Context, &claim)
+			if err != nil {
+				return premises, NewServerError(err.Error())
+			}
+			premises = append(premises, claim)
+		}
 	}
 
 	return premises, nil
@@ -477,6 +641,11 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
 
 func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Claim, GruffError) {
 	premises := []Claim{}
+
+	// TODO: test
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return premises, err
+	}
 
 	if new <= 0 {
 		return premises, NewBusinessError("Order: invalid value;")
@@ -576,25 +745,28 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
 
 func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
 	db := ctx.Arango.DB
-	qctx := arango.WithQueryCount(ctx.Context)
-	var n int64
 
-	bindVars := map[string]interface{}{
-		"from": c.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s 
+	var n int64
+	if c.MultiPremise {
+		qctx := arango.WithQueryCount(ctx.Context)
+
+		bindVars := map[string]interface{}{
+			"from": c.ArangoID(),
+		}
+		query := fmt.Sprintf(`FOR obj IN %s 
                                 FILTER obj._from == @from
                                 %s
                                 SORT obj.order
                                 RETURN obj`,
-		PremiseEdge{}.CollectionName(),
-		c.DateFilter(bindVars))
-	cursor, err := db.Query(qctx, query, bindVars)
-	if err != nil {
-		return n, NewServerError(err.Error())
+			PremiseEdge{}.CollectionName(),
+			c.DateFilter(bindVars))
+		cursor, err := db.Query(qctx, query, bindVars)
+		if err != nil {
+			return n, NewServerError(err.Error())
+		}
+		defer cursor.Close()
+		n = cursor.Count()
 	}
-	defer cursor.Close()
-	n = cursor.Count()
 	return n, nil
 }
 
@@ -696,6 +868,7 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 // TODO: Implement search
 
 func (c Claim) UpdateTruth(ctx *ServerContext) {
+
 	//ctx.Database.Exec("UPDATE claims c SET truth = (SELECT AVG(truth) FROM claim_opinions WHERE claim_id = c.id) WHERE id = ?", c.ID)
 
 	// TODO: test

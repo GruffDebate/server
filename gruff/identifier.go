@@ -31,20 +31,21 @@ func (i Identifier) ValidateField(f string) GruffError {
 	return ValidateStructField(i, f)
 }
 
-func (i *Identifier) PrepareForCreate(u User) {
+func (i *Identifier) PrepareForCreate(ctx *ServerContext) {
+	u := ctx.UserContext
 	i.Key = uuid.New().String()
 	if i.ID == "" {
 		// Brand new item, rather than a new version
 		i.ID = uuid.New().String()
 	}
-	i.CreatedAt = time.Now()
-	i.UpdatedAt = time.Now()
+	i.CreatedAt = ctx.RequestTime()
+	i.UpdatedAt = ctx.RequestTime()
 	i.CreatedByID = u.ArangoID()
 	return
 }
 
-func (i *Identifier) PrepareForDelete() {
-	i.DeletedAt = support.TimePtr(time.Now())
+func (i *Identifier) PrepareForDelete(ctx *ServerContext) {
+	i.DeletedAt = support.TimePtr(ctx.RequestTime())
 	return
 }
 
@@ -53,12 +54,13 @@ func (i Identifier) DateFilter(bindVars map[string]interface{}) string {
 	if i.QueryAt != nil {
 		queryAt = i.QueryAt
 	} else if i.DeletedAt != nil {
-		queryAt = i.DeletedAt
+		beforeDelete := i.DeletedAt.Add(-1 * time.Millisecond)
+		queryAt = &beforeDelete
 	}
 
 	if queryAt != nil {
 		bindVars["query_at"] = queryAt
-		query := fmt.Sprintf("FILTER obj.start <= @query_at AND (obj.end == null OR obj.end >= @query_at)")
+		query := fmt.Sprintf("FILTER obj.start <= @query_at AND (obj.end == null OR obj.end > @query_at)")
 		return query
 	} else {
 		return "FILTER obj.end == null"

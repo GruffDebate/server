@@ -118,7 +118,7 @@ func Get(c echo.Context) error {
 		ident.ID = id
 	}
 
-	err := item.Load(ctx)
+	err := item.LoadFull(ctx)
 	if err != nil {
 		return AddGruffError(ctx, c, err)
 	}

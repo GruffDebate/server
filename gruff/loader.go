@@ -6,6 +6,7 @@ import (
 
 type Loader interface {
 	Load(*ServerContext) GruffError
+	LoadFull(*ServerContext) GruffError
 }
 
 func IsLoader(t reflect.Type) bool {

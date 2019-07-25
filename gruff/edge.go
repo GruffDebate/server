@@ -23,15 +23,16 @@ func (e Edge) ValidateField(f string) GruffError {
 	return ValidateStructField(e, f)
 }
 
-func (e *Edge) PrepareForCreate(u User) {
+func (e *Edge) PrepareForCreate(ctx *ServerContext) {
+	u := ctx.UserContext
 	e.Key = uuid.New().String()
-	e.CreatedAt = time.Now()
+	e.CreatedAt = ctx.RequestTime()
 	e.CreatedByID = u.ArangoID()
 	return
 }
 
-func (e *Edge) PrepareForDelete() {
-	e.DeletedAt = support.TimePtr(time.Now())
+func (e *Edge) PrepareForDelete(ctx *ServerContext) {
+	e.DeletedAt = support.TimePtr(ctx.RequestTime())
 	return
 }
 
