@@ -162,43 +162,56 @@ func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	premises, err := c.Premises(ctx)
-	if err != nil {
-		return err
-	}
-	c.PremiseClaims = premises
-
-	args, err := c.Arguments(ctx)
-	if err != nil {
-		return err
-	}
-
-	var proArgs, conArgs []Argument
-	for _, arg := range args {
-		bc := Claim{}
-		bc.ID = arg.ClaimID
-		bc.QueryAt = c.QueryAt
-		if err := bc.Load(ctx); err != nil {
+	if c.MultiPremise {
+		premises, err := c.Premises(ctx)
+		if err != nil {
 			return err
 		}
-		bc.QueryAt = nil
-		arg.Claim = &bc
 
-		if arg.Pro {
-			proArgs = append(proArgs, arg)
-		} else {
-			conArgs = append(conArgs, arg)
+		fullPremises := make([]Claim, len(premises))
+		for i, premise := range premises {
+			premise.QueryAt = c.QueryDate()
+			if err := premise.LoadFull(ctx); err != nil {
+				return err
+			}
+			premise.QueryAt = nil
+			fullPremises[i] = premise
 		}
-	}
 
-	c.ProArgs = proArgs
-	c.ConArgs = conArgs
+		c.PremiseClaims = fullPremises
+	} else {
+		args, err := c.Arguments(ctx)
+		if err != nil {
+			return err
+		}
+
+		var proArgs, conArgs []Argument
+		for _, arg := range args {
+			bc := Claim{}
+			bc.ID = arg.ClaimID
+			bc.QueryAt = c.QueryDate()
+			if err := bc.Load(ctx); err != nil {
+				return err
+			}
+			bc.QueryAt = nil
+			arg.Claim = &bc
+
+			if arg.Pro {
+				proArgs = append(proArgs, arg)
+			} else {
+				conArgs = append(conArgs, arg)
+			}
+		}
+
+		c.ProArgs = proArgs
+		c.ConArgs = conArgs
+	}
 
 	return nil
 }
 
 // Updater
-
+// TODO: record UpdatedBy field
 func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
@@ -409,6 +422,12 @@ func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 		return err
 	}
 
+	// TODO: Test
+	if c.MultiPremise {
+		ctx.Rollback()
+		return NewBusinessError("Multi-premise claims can't have their own arguments. Arguments should be added directly to one of their premises.")
+	}
+
 	edge := Inference{
 		From: c.ArangoID(),
 		To:   a.ArangoID(),
@@ -439,6 +458,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		}
 	}
 
+	// TODO: move the arguments to the first premise
 	if !c.MultiPremise {
 		updates := map[string]interface{}{
 			"mp":     true,

@@ -49,7 +49,7 @@ func (i *Identifier) PrepareForDelete(ctx *ServerContext) {
 	return
 }
 
-func (i Identifier) DateFilter(bindVars map[string]interface{}) string {
+func (i Identifier) QueryDate() *time.Time {
 	var queryAt *time.Time
 	if i.QueryAt != nil {
 		queryAt = i.QueryAt
@@ -57,7 +57,11 @@ func (i Identifier) DateFilter(bindVars map[string]interface{}) string {
 		beforeDelete := i.DeletedAt.Add(-1 * time.Millisecond)
 		queryAt = &beforeDelete
 	}
+	return queryAt
+}
 
+func (i Identifier) DateFilter(bindVars map[string]interface{}) string {
+	queryAt := i.QueryDate()
 	if queryAt != nil {
 		bindVars["query_at"] = queryAt
 		query := fmt.Sprintf("FILTER obj.start <= @query_at AND (obj.end == null OR obj.end > @query_at)")

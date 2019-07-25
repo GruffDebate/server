@@ -202,24 +202,6 @@ func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) Gruf
 	return nil
 }
 
-// func SetKey(item interface{}, key string) GruffError {
-// 	v := reflect.ValueOf(item)
-// 	if v.Kind() == reflect.Ptr {
-// 		if v.IsNil() {
-// 			return NewBusinessError("Cannot set value on nil item")
-// 		}
-// 		v = v.Elem()
-// 	}
-
-// 	fv := v.FieldByName("Key")
-// 	if fv.Kind() != reflect.String {
-// 		return NewServerError("Item does not have a Key field")
-// 	}
-
-// 	fv.SetString(key)
-// 	return nil
-// }
-
 func SetKey(item interface{}, key string) GruffError {
 	v := reflect.ValueOf(item)
 	if v.Kind() == reflect.Ptr {
@@ -238,19 +220,35 @@ func SetKey(item interface{}, key string) GruffError {
 
 		fv.SetString(key)
 	} else {
-		fmt.Println("oi1")
 		t := v.Type()
 		keyField, _ := KeyField(t)
-		f := v.FieldByName(keyField.Name)
-		if f.Type().Kind() == reflect.Ptr {
-			f.Set(reflect.ValueOf(&key))
+		if keyField != nil {
+			f := v.FieldByName(keyField.Name)
+			if f.Type().Kind() == reflect.Ptr {
+				f.Set(reflect.ValueOf(&key))
+			} else {
+				f.Set(reflect.ValueOf(key))
+			}
 		} else {
-			f.Set(reflect.ValueOf(key))
+			return NewServerError("Item does not have a Key field")
 		}
-		fmt.Println(f)
 	}
 
 	return nil
+}
+
+func KeyField(t reflect.Type) (field *reflect.StructField, dbFieldName string) {
+	elemT := t
+	if elemT.Kind() == reflect.Ptr {
+		elemT = elemT.Elem()
+	}
+
+	f, found := elemT.FieldByName("Key")
+	if found {
+		field = &f
+		dbFieldName = "key"
+	}
+	return
 }
 
 func SetUserID(item interface{}, id string) error {
@@ -290,20 +288,6 @@ func UserIDField(t reflect.Type) (field *reflect.StructField, dbFieldName string
 	if found {
 		field = &f
 		dbFieldName = "creator"
-	}
-	return
-}
-
-func KeyField(t reflect.Type) (field *reflect.StructField, dbFieldName string) {
-	elemT := t
-	if elemT.Kind() == reflect.Ptr {
-		elemT = elemT.Elem()
-	}
-
-	f, found := elemT.FieldByName("Key")
-	if found {
-		field = &f
-		dbFieldName = "key"
 	}
 	return
 }

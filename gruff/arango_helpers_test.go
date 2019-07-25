@@ -36,11 +36,11 @@ func TestDefaultListQuery(t *testing.T) {
 	var obj ArangoObject
 
 	obj = Claim{}
-	assert.Equal(t, "FOR obj IN claims SORT obj.start DESC LIMIT 0, 20 RETURN obj", DefaultListQuery(obj, params))
+	assert.Equal(t, "FOR obj IN claims FILTER obj.end == null SORT obj.start DESC LIMIT 0, 20 RETURN obj", DefaultListQuery(obj, params))
 
 	obj = Argument{}
 	params.Return = support.StringPtr("obj._id")
-	assert.Equal(t, "FOR obj IN arguments SORT obj.start DESC LIMIT 0, 20 RETURN obj._id", DefaultListQuery(obj, params))
+	assert.Equal(t, "FOR obj IN arguments FILTER obj.end == null SORT obj.start DESC LIMIT 0, 20 RETURN obj._id", DefaultListQuery(obj, params))
 }
 
 func TestListArangoObjects(t *testing.T) {
@@ -67,7 +67,7 @@ func TestListArangoObjects(t *testing.T) {
 	CTX.RequestAt = nil
 
 	query := DefaultListQuery(Claim{}, DEFAULT_QUERY_PARAMETERS.Merge(ArangoQueryParameters{Limit: support.IntPtr(5)}))
-	assert.Equal(t, "FOR obj IN claims SORT obj.start DESC LIMIT 0, 5 RETURN obj", query)
+	assert.Equal(t, "FOR obj IN claims FILTER obj.end == null SORT obj.start DESC LIMIT 0, 5 RETURN obj", query)
 	objs, err := ListArangoObjects(CTX, reflect.TypeOf(Claim{}), query, map[string]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(objs))
