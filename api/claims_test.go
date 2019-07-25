@@ -54,9 +54,6 @@ func createClaimByUser() gruff.Claim {
 
 	claim.Create(CTX)
 	return claim
-
-	claim.Identifier.CreatedByID = u.ArangoID()
-	return claim
 }
 
 func seedClaimByUser() (gruff.User, gruff.Claim) {

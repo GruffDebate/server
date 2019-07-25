@@ -2,7 +2,6 @@ package api
 
 import (
 	_ "encoding/json"
-	_ "fmt"
 	"net/http"
 	"testing"
 
@@ -19,7 +18,7 @@ func createUser(name string, username string, email string) gruff.User {
 	}
 
 	u.Create(CTX)
-
+	u.Load(CTX)
 	return u
 }
 
