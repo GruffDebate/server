@@ -453,3 +453,238 @@ func TestLoadArgumentAtDate(t *testing.T) {
 	assert.Nil(t, lookup.DeletedAt)
 	assert.Equal(t, thirdKey, lookup.ArangoKey())
 }
+
+func TestArgumentLoadFull(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "This is the Argument LoadAll test claim",
+		Description:  "Load all the things!",
+		Negation:     "Don't load all the things.",
+		Question:     "Load all the THINGS? Load ALL the things? LOAD all the things?",
+		Note:         "This Claim needs to be all loaded.",
+		Image:        "https://i.chzbgr.com/full/6434679808/h4ADBDEA5/",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	distantClaim := Claim{
+		Title:       "So very far away from Argument LoadAll",
+		Description: "So distant, you cannot see me.",
+	}
+	err = distantClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "ARG?",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Load ARG!",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg3 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Do it ARG!",
+		Pro:           true,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	theArg := Argument{
+		TargetClaimID: &distantClaim.ID,
+		ClaimID:       claim.ID,
+		Title:         "This is the Argument for LoadFull",
+	}
+	err = theArg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1arg := Argument{
+		TargetArgumentID: &arg1.ID,
+		Title:            "Do it...ARRRRRG!",
+		Pro:              false,
+	}
+	err = arg1arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	theArgArg1 := Argument{
+		TargetArgumentID: &theArg.ID,
+		Title:            "Now we're just getting ridiculous... an argument for THE ARG?",
+		Pro:              true,
+	}
+	err = theArgArg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	theArgArg2 := Argument{
+		TargetArgumentID: &theArg.ID,
+		Title:            "Now we're just getting ridiculous... another argument for THE ARG?",
+		Pro:              false,
+	}
+	err = theArgArg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	theArgArg3 := Argument{
+		TargetArgumentID: &theArg.ID,
+		Title:            "Now we're just getting ridiculous... another nother argument for THE ARG?",
+		Pro:              false,
+	}
+	err = theArgArg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	theArgArg3.Load(CTX)
+
+	theArgArg3Base := Claim{}
+	theArgArg3Base.ID = theArgArg3.ClaimID
+	theArgArg3Base.Load(CTX)
+
+	theArgArg3BaseArg := Argument{
+		TargetClaimID: &theArgArg3Base.ID,
+		Title:         "You think that's bad? How about one more for the base arg of the arg arg 3?",
+		Pro:           true,
+	}
+	err = theArgArg3BaseArg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Simple Load
+	err = theArg.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Nil(t, theArg.Claim)
+	assert.Equal(t, 0, len(theArg.ProArgs))
+	assert.Equal(t, 0, len(theArg.ConArgs))
+
+	// Load All
+	arg1.Load(CTX)
+	arg2.Load(CTX)
+	arg3.Load(CTX)
+	theArgArg1.Load(CTX)
+	theArgArg2.Load(CTX)
+	theArgArg3.Load(CTX)
+	var carg1, carg2, carg3, ctaa1, ctaa2, ctaa3 Claim
+	carg1.ID = arg1.ClaimID
+	carg2.ID = arg2.ClaimID
+	carg3.ID = arg3.ClaimID
+	ctaa1.ID = theArgArg1.ClaimID
+	ctaa2.ID = theArgArg2.ClaimID
+	ctaa3.ID = theArgArg3.ClaimID
+	carg1.Load(CTX)
+	carg2.Load(CTX)
+	carg3.Load(CTX)
+	ctaa1.Load(CTX)
+	ctaa2.Load(CTX)
+	ctaa3.Load(CTX)
+	arg1.Claim = &carg1
+	arg2.Claim = &carg2
+	arg3.Claim = &carg3
+	theArgArg1.Claim = &ctaa1
+	theArgArg2.Claim = &ctaa2
+	theArgArg3.Claim = &ctaa3
+
+	claim.Load(CTX)
+	claim.ProArgs = []Argument{arg1, arg3}
+	claim.ConArgs = []Argument{arg2}
+
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 1, len(theArg.ProArgs))
+	assert.Equal(t, 2, len(theArg.ConArgs))
+	assert.Equal(t, theArgArg1, theArg.ProArgs[0])
+	assert.Equal(t, theArgArg2, theArg.ConArgs[0])
+	assert.Equal(t, theArgArg3, theArg.ConArgs[1])
+
+	err = arg1.Delete(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	err = theArgArg2.Delete(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg1.Load(CTX)
+	theArgArg2.Load(CTX)
+
+	claim.ProArgs = []Argument{arg3}
+	claim.ConArgs = []Argument{arg2}
+
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 1, len(theArg.ProArgs))
+	assert.Equal(t, 1, len(theArg.ConArgs))
+	assert.Equal(t, theArgArg1, theArg.ProArgs[0])
+	assert.Equal(t, theArgArg3, theArg.ConArgs[0])
+
+	// Previous points in time
+	claim.ProArgs = []Argument{arg1, arg3}
+	claim.ConArgs = []Argument{arg2}
+	theArg.QueryAt = &theArgArg3BaseArg.CreatedAt
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 1, len(theArg.ProArgs))
+	assert.Equal(t, 2, len(theArg.ConArgs))
+	assert.Equal(t, theArgArg1, theArg.ProArgs[0])
+	assert.Equal(t, theArgArg2, theArg.ConArgs[0])
+	assert.Equal(t, theArgArg3, theArg.ConArgs[1])
+
+	claim.ProArgs = []Argument{arg1}
+	claim.ConArgs = nil
+	theArg.QueryAt = &arg1.CreatedAt
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 0, len(theArg.ProArgs))
+	assert.Equal(t, 0, len(theArg.ConArgs))
+
+	claim.ProArgs = []Argument{arg1, arg3}
+	claim.ConArgs = []Argument{arg2}
+	theArg.QueryAt = &theArg.CreatedAt
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 0, len(theArg.ProArgs))
+	assert.Equal(t, 0, len(theArg.ConArgs))
+
+	claim.ProArgs = []Argument{arg3}
+	theArg.QueryAt = nil
+	err = theArg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, theArg.DeletedAt)
+	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
+	assert.Equal(t, claim, *theArg.Claim)
+	assert.Equal(t, 1, len(theArg.ProArgs))
+	assert.Equal(t, 1, len(theArg.ConArgs))
+	assert.Equal(t, theArgArg1, theArg.ProArgs[0])
+	assert.Equal(t, theArgArg3, theArg.ConArgs[0])
+}

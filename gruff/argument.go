@@ -103,6 +103,9 @@ func (a Argument) ValidateForCreate() GruffError {
 }
 
 func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if a.DeletedAt != nil {
+		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
+	}
 	if err := SetJsonValuesOnStruct(&a, updates); err != nil {
 		return err
 	}
@@ -254,12 +257,53 @@ func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
 	if err := a.Load(ctx); err != nil {
 		return err
 	}
+
+	args, err := a.Arguments(ctx)
+	if err != nil {
+		return err
+	}
+
+	var proArgs, conArgs []Argument
+	for _, arg := range args {
+		bc := Claim{}
+		bc.ID = arg.ClaimID
+		bc.QueryAt = a.QueryDate()
+		if err := bc.Load(ctx); err != nil {
+			return err
+		}
+		bc.QueryAt = nil
+		arg.Claim = &bc
+
+		if arg.Pro {
+			proArgs = append(proArgs, arg)
+		} else {
+			conArgs = append(conArgs, arg)
+		}
+	}
+
+	a.ProArgs = proArgs
+	a.ConArgs = conArgs
+
+	baseClaim := Claim{}
+	baseClaim.ID = a.ClaimID
+	baseClaim.QueryAt = a.QueryDate()
+	if err = baseClaim.LoadFull(ctx); err != nil {
+		return err
+	}
+	baseClaim.QueryAt = nil
+	a.Claim = &baseClaim
+
 	return nil
 }
 
 // Business methods
 
 func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
+	// TODO: test
+	if err := a.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
 	edge := Inference{
 		From: a.ArangoID(),
 		To:   arg.ArangoID(),
@@ -284,6 +328,7 @@ func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
                                    FILTER obj._to == a._id
                                       AND obj._from == @arg
                                    %s
+                                   SORT a.start ASC
                                    RETURN a`,
 		Inference{}.CollectionName(),
 		Argument{}.CollectionName(),
@@ -355,6 +400,13 @@ func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) 
 // Deleter
 
 func (a *Argument) Delete(ctx *ServerContext) GruffError {
+	// TODO: validate for delete, including having no anything
+	// ... unless versioning
+	// TODO: test
+	if a.DeletedAt != nil {
+		return NewBusinessError("This argument has already been deleted")
+	}
+
 	a.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": a.DeletedAt,

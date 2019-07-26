@@ -79,7 +79,7 @@ func (c Claim) ValidateForCreate() GruffError {
 
 func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	if c.DeletedAt != nil {
-		return NewBusinessError("A Claim that has already been deleted, or has a newer version, cannot be modified.")
+		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
 	}
 	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
 		return err
@@ -329,6 +329,11 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 
 func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	// TODO: validate for delete, including having no anythig
+	// ... unless versioning
+	// TODO: test
+	if c.DeletedAt != nil {
+		return NewBusinessError("This claim has already been deleted")
+	}
 
 	c.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
