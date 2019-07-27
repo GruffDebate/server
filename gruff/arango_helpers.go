@@ -73,6 +73,12 @@ func OpenArangoDatabase(client arango.Client) (arango.Database, error) {
 	return db, err
 }
 
+func CloseCursor(cursor arango.Cursor) {
+	if cursor != nil {
+		cursor.Close()
+	}
+}
+
 // QUERY PARAMETERS
 // By convention, simple queries will use "obj" as the collection item reference
 // in order to simplify the basic use cases

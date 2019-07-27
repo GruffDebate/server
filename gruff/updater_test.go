@@ -10,7 +10,7 @@ import (
 func TestIsUpdater(t *testing.T) {
 	assert.True(t, IsUpdater(reflect.TypeOf(&User{})))
 	assert.True(t, IsUpdater(reflect.TypeOf(&Claim{})))
-	assert.False(t, IsUpdater(reflect.TypeOf(&Argument{})))
+	assert.True(t, IsUpdater(reflect.TypeOf(&Argument{})))
 	assert.False(t, IsUpdater(reflect.TypeOf(&Inference{})))
 	assert.False(t, IsUpdater(reflect.TypeOf(&BaseClaimEdge{})))
 	assert.False(t, IsUpdater(reflect.TypeOf(&PremiseEdge{})))

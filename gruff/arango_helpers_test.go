@@ -1,8 +1,10 @@
 package gruff
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/GruffDebate/server/support"
 	arango "github.com/arangodb/go-driver"
@@ -12,14 +14,35 @@ import (
 var TEST_CLIENT arango.Client
 var TESTDB arango.Database
 var CTX *ServerContext
+var DEFAULT_USER User
 
 func init() {
 	CTX = &ServerContext{}
 	TEST_CLIENT, TESTDB = InitTestDB()
+	CTX.Arango.DB = TESTDB
+
+	user := User{
+		Name:            "Big Billy Goat Gruff",
+		Username:        "BigBillyGoat",
+		Email:           "bbg@gruff.org",
+		Image:           "https://miro.medium.com/max/1400/1*h765MiOJBkf7fqPdrQDCPQ.jpeg",
+		Curator:         false,
+		Admin:           false,
+		URL:             "https://github.com/canonical-debate-lab/paper",
+		EmailVerifiedAt: support.TimePtr(time.Now()),
+	}
+	err := user.Create(CTX)
+	if err != nil {
+		fmt.Println("ERROR Creating test user:", err.Error())
+	}
+
+	DEFAULT_USER = user
+	CTX.UserContext = user
 }
 
 func setupDB() {
 	CTX.Arango.DB = TESTDB
+	CTX.UserContext = DEFAULT_USER
 }
 
 func teardownDB() {

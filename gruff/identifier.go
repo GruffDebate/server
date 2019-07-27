@@ -17,6 +17,7 @@ type Identifier struct {
 	DeletedAt   *time.Time `json:"end"`
 	QueryAt     *time.Time `json:"-"`
 	CreatedByID string     `json:"creator"`
+	UpdatedByID string     `json:"editor,omitempty"`
 }
 
 func (i Identifier) ValidateForCreate() GruffError {
@@ -40,7 +41,10 @@ func (i *Identifier) PrepareForCreate(ctx *ServerContext) {
 	}
 	i.CreatedAt = ctx.RequestTime()
 	i.UpdatedAt = ctx.RequestTime()
-	i.CreatedByID = u.ArangoID()
+	if i.CreatedByID == "" {
+		i.CreatedByID = u.ArangoID()
+	}
+	i.UpdatedByID = u.ArangoID()
 	return
 }
 

@@ -688,3 +688,169 @@ func TestArgumentLoadFull(t *testing.T) {
 	assert.Equal(t, theArgArg1, theArg.ProArgs[0])
 	assert.Equal(t, theArgArg3, theArg.ConArgs[0])
 }
+
+func TestArgumentUpdate(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title: "You are going to update the Argument for this Claim, aren't you?",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	baseClaim := Claim{
+		Title: "How low can you go? Update... what a Claim knows.",
+	}
+	err = baseClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg := Argument{
+		TargetClaimID: &claim.ID,
+		ClaimID:       baseClaim.ID,
+		Title:         "This is the argument everyone wants to Update",
+		Pro:           true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetArgumentID: &arg.ID,
+		Title:            "I'm an argument to an updated argument",
+		Pro:              true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetArgumentID: &arg.ID,
+		Title:            "No, I'm an argument to an updated argument",
+		Pro:              false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Next check edges, then version and recheck everything
+	inferences, err := arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+
+	bce, err := arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err := arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	// Update the argument
+	curator := User{Username: "another_curator", Curator: true}
+	err = curator.Create(CTX)
+	assert.NoError(t, err)
+	CTX.UserContext = curator
+
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	origKey := arg.ArangoKey()
+
+	updates := map[string]interface{}{
+		"title": "Now this argument has gone and been updated",
+		"desc":  "And so has its description",
+	}
+	err = arg.Update(CTX, updates)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, arg.DeletedAt)
+	assert.Equal(t, "Now this argument has gone and been updated", arg.Title)
+	assert.Equal(t, "And so has its description", arg.Description)
+	assert.NotEqual(t, origKey, arg.ArangoKey())
+	assert.Equal(t, DEFAULT_USER.ArangoID(), arg.CreatedByID)
+	assert.Equal(t, CTX.UserContext.ArangoID(), arg.UpdatedByID)
+
+	origArg := Argument{}
+	origArg.Key = origKey
+	err = origArg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, origArg.DeletedAt)
+	assert.Equal(t, "This is the argument everyone wants to Update", origArg.Title)
+	assert.Equal(t, "", origArg.Description)
+	assert.Equal(t, origKey, origArg.ArangoKey())
+
+	// Verify new edges were created
+	inferences, err = arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+	assert.Nil(t, inferences[0].DeletedAt)
+	assert.Nil(t, inferences[1].DeletedAt)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+	assert.Nil(t, bce.DeletedAt)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+	assert.Nil(t, inf.DeletedAt)
+
+	args, err = arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	// Verify that the old edges were deleted
+	inferences, err = origArg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, origArg.ArangoID(), inferences[0].From)
+	assert.Equal(t, origArg.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+	assert.NotNil(t, inferences[0].DeletedAt)
+	assert.NotNil(t, inferences[1].DeletedAt)
+
+	bce, err = origArg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, origArg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+	assert.NotNil(t, bce.DeletedAt)
+
+	inf, err = origArg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, origArg.ArangoID(), inf.To)
+	assert.NotNil(t, inf.DeletedAt)
+
+	args, err = origArg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+}

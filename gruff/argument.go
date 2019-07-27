@@ -235,10 +235,10 @@ func (a *Argument) Load(ctx *ServerContext) GruffError {
 			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
 		}
 		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer CloseCursor(cursor)
 		if err != nil {
 			return NewServerError(err.Error())
 		}
-		defer cursor.Close()
 		for cursor.HasMore() {
 			_, err := cursor.ReadDocument(ctx.Context, a)
 			if err != nil {
@@ -296,105 +296,96 @@ func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// Business methods
+// Updater
 
-func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
-	// TODO: test
-	if err := a.ValidateForUpdate(map[string]interface{}{}); err != nil {
+func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	if err := a.ValidateForUpdate(updates); err != nil {
 		return err
 	}
 
-	edge := Inference{
-		From: a.ArangoID(),
-		To:   arg.ArangoID(),
+	col, err := ctx.Arango.CollectionFor(a)
+	if err != nil {
+		return err
 	}
 
-	if err := edge.Create(ctx); err != nil {
+	// When an Argument is updated, it creates a new version
+	if err := a.version(ctx); err != nil {
+		return err
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, a.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return a.Load(ctx)
+}
+
+func (a *Argument) version(ctx *ServerContext) GruffError {
+	oldVersion := *a
+
+	// This should delete all the old edges, too
+	if err := oldVersion.Delete(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
+
+	if err := a.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Find all edges going to old ver, make copy to new ver
+	// Arguments
+	inferences, err := oldVersion.Inferences(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range inferences {
+		newEdge := Inference{
+			From: a.ArangoID(),
+			To:   edge.To,
+		}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	// Inference edge
+	inference, err := oldVersion.Inference(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	newInference := Inference{
+		From: inference.From,
+		To:   a.ArangoID(),
+	}
+	if err := newInference.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Base Claim edge
+	baseClaimEdge, err := oldVersion.BaseClaimEdge(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	newBaseClaimEdge := BaseClaimEdge{
+		From: baseClaimEdge.From,
+		To:   a.ArangoID(),
+	}
+	if err := newBaseClaimEdge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// TODO: Contexts
+	// TODO: Links
+
 	return nil
-}
-
-func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
-	db := ctx.Arango.DB
-	args := []Argument{}
-
-	bindVars := map[string]interface{}{
-		"arg": a.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s
-                                 FOR a IN %s
-                                   FILTER obj._to == a._id
-                                      AND obj._from == @arg
-                                   %s
-                                   SORT a.start ASC
-                                   RETURN a`,
-		Inference{}.CollectionName(),
-		Argument{}.CollectionName(),
-		a.DateFilter(bindVars),
-	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	defer cursor.Close()
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
-}
-
-func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
-	db := ctx.Arango.DB
-	edge := Inference{}
-
-	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to LIMIT 1 RETURN e", edge.CollectionName())
-	bindVars := map[string]interface{}{
-		"to": a.ArangoID(),
-	}
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	if err != nil {
-		return edge, NewServerError(err.Error())
-	}
-	defer cursor.Close()
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edge, NewServerError(err.Error())
-		}
-	}
-
-	return edge, nil
-}
-
-func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) {
-	db := ctx.Arango.DB
-	edge := BaseClaimEdge{}
-
-	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from LIMIT 1 RETURN e", edge.CollectionName())
-	bindVars := map[string]interface{}{
-		"from": a.ArangoID(),
-	}
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	if err != nil {
-		return edge, NewServerError(err.Error())
-	}
-	defer cursor.Close()
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edge, NewServerError(err.Error())
-		}
-	}
-
-	return edge, nil
 }
 
 // Deleter
@@ -457,6 +448,138 @@ func (a *Argument) Delete(ctx *ServerContext) GruffError {
 	}
 
 	return nil
+}
+
+// Business methods
+
+func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
+	// TODO: test
+	if err := a.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
+	edge := Inference{
+		From: a.ArangoID(),
+		To:   arg.ArangoID(),
+	}
+
+	if err := edge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+	return nil
+}
+
+func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
+	db := ctx.Arango.DB
+	args := []Argument{}
+
+	bindVars := map[string]interface{}{
+		"arg": a.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._to == a._id
+                                      AND obj._from == @arg
+                                   %s
+                                   SORT a.start ASC
+                                   RETURN a`,
+		Inference{}.CollectionName(),
+		Argument{}.CollectionName(),
+		a.DateFilter(bindVars),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return args, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		arg := Argument{}
+		_, err := cursor.ReadDocument(ctx.Context, &arg)
+		if err != nil {
+			return args, NewServerError(err.Error())
+		}
+		args = append(args, arg)
+	}
+
+	return args, nil
+}
+
+// TODO: Make generic by moving method to inference.go
+func (a Argument) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
+	db := ctx.Arango.DB
+	edges := []Inference{}
+
+	bindVars := map[string]interface{}{
+		"from": a.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                %s
+                                RETURN obj`,
+		Inference{}.CollectionName(),
+		a.DateFilter(bindVars))
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return edges, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		edge := Inference{}
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edges, NewServerError(err.Error())
+		}
+		edges = append(edges, edge)
+	}
+
+	return edges, nil
+}
+
+func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
+	db := ctx.Arango.DB
+	edge := Inference{}
+
+	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to LIMIT 1 RETURN e", edge.CollectionName())
+	bindVars := map[string]interface{}{
+		"to": a.ArangoID(),
+	}
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return edge, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edge, NewServerError(err.Error())
+		}
+	}
+
+	return edge, nil
+}
+
+func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) {
+	db := ctx.Arango.DB
+	edge := BaseClaimEdge{}
+
+	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from LIMIT 1 RETURN e", edge.CollectionName())
+	bindVars := map[string]interface{}{
+		"from": a.ArangoID(),
+	}
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return edge, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edge, NewServerError(err.Error())
+		}
+	}
+
+	return edge, nil
 }
 
 // TODO: Create method should set default Strength to 0.5

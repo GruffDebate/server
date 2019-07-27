@@ -53,6 +53,25 @@ func TestCreateClaim(t *testing.T) {
 	assert.Equal(t, claim.Image, saved.Image)
 	assert.True(t, saved.MultiPremise)
 	assert.Equal(t, PREMISE_RULE_ALL, saved.PremiseRule)
+
+	err = claim.Create(CTX)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim with the same ID already exists", err.Error())
+
+	claim = Claim{}
+	err = claim.Create(CTX)
+	assert.Error(t, err)
+	assert.Equal(t, "Title: must be between 3 and 1000 characters;", err.Error())
+
+	claim.Title = "Something more than 3 characters"
+	claim.Description = "AB"
+	err = claim.Create(CTX)
+	assert.Error(t, err)
+	assert.Equal(t, "Description: must be blank, or between 3 and 4000 characters;", err.Error())
+
+	claim.Description = ""
+	err = claim.Create(CTX)
+	assert.NoError(t, err)
 }
 
 func TestClaimAddPremise(t *testing.T) {
@@ -285,6 +304,11 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
 
 	// Update the claim
+	curator := User{Username: "curator", Curator: true}
+	err = curator.Create(CTX)
+	assert.NoError(t, err)
+	CTX.UserContext = curator
+
 	err = claim.Load(CTX)
 	assert.NoError(t, err)
 	origClaimKey := claim.ArangoKey()
@@ -303,6 +327,8 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, "New Title", claim.Title)
 	assert.Equal(t, "New Description", claim.Description)
 	assert.NotEqual(t, origClaimKey, claim.ArangoKey())
+	assert.Equal(t, DEFAULT_USER.ArangoID(), claim.CreatedByID)
+	assert.Equal(t, CTX.UserContext.ArangoID(), claim.UpdatedByID)
 
 	origClaim := Claim{}
 	origClaim.Key = origClaimKey
@@ -1393,4 +1419,293 @@ func TestClaimLoadFullMP(t *testing.T) {
 	assert.Equal(t, 0, len(claim.ConArgs))
 	assert.Equal(t, premiseClaim1, claim.PremiseClaims[0])
 	assert.Equal(t, premiseClaim3, claim.PremiseClaims[1])
+}
+
+func TestClaimDeleteLoop(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "I'm first, so any loop is your fault",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is for deleting in a loop",
+		Image:        "https://static1.squarespace.com/static/58ed33aeb8a79b05bed202aa/t/5a1fed3a652dead776d6aaed/1512041798286/The+loop+logo+white+background.jpg?format=1000w",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	distantClaim := Claim{
+		Title:       "So very far away, but the loop brings us closer",
+		Description: "So distant, you cannot see me, unless you follow the loop.",
+	}
+	err = distantClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		ClaimID:       distantClaim.ID,
+		Title:         "Let's create a loop argument",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argDC1 := Argument{
+		TargetClaimID: &distantClaim.ID,
+		ClaimID:       claim.ID,
+		Title:         "I want to get away from the loop",
+	}
+	err = argDC1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1arg := Argument{
+		TargetArgumentID: &arg1.ID,
+		ClaimID:          distantClaim.ID,
+		Title:            "Let's create a new argument argument related to the loop",
+		Pro:              false,
+	}
+	err = arg1arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Next, delete the main claim
+	err = claim.Delete(CTX)
+	assert.NoError(t, err)
+
+	inferences, err := claim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, claim.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.NotNil(t, inferences[0].DeletedAt)
+
+	baseClaimEdges, err := claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(baseClaimEdges))
+	assert.Equal(t, argDC1.ArangoID(), baseClaimEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), baseClaimEdges[0].To)
+	assert.NotNil(t, baseClaimEdges[0].DeletedAt)
+
+	args, err := claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.NotNil(t, args[0].DeletedAt)
+
+	err = arg1arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, arg1arg.DeletedAt)
+
+	err = argDC1.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotNil(t, argDC1.DeletedAt)
+
+	err = distantClaim.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, distantClaim.DeletedAt)
+}
+
+func TestClaimAddPremiseLoop(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "I dare you to doubt me because I am MP Infinite Loop",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is all about infinite premise loops",
+		Image:        "https://media.sanoma.fi/sites/default/files/styles/icon_lg/public/2018-03/Loop.png?itok=F630fzmT",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	premiseClaim1 := Claim{
+		Title:        "I am a normal premise. Use me!",
+		Description:  "The person that is daring you to doubt me being me",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim1)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	premiseClaim2 := Claim{
+		Title:        "I'm also an innocente premise... at first...",
+		Description:  "I am undoubtable",
+		MultiPremise: false,
+	}
+	err = claim.AddPremise(CTX, &premiseClaim2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	mpClaim := Claim{
+		Title:        "This is an MP that is going to be involved in a loop",
+		Description:  "Not military police, mind you",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err = mpClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = mpClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Now try to create a loop and fail
+	err = claim.AddPremise(CTX, &claim)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+
+	err = claim.AddPremise(CTX, &mpClaim)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+
+	err = premiseClaim2.AddPremise(CTX, &claim)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+
+	err = claim.AddPremise(CTX, &premiseClaim1)
+	assert.Error(t, err)
+	assert.Equal(t, "This claim has already been added as a premise.", err.Error())
+
+	err = mpClaim.AddPremise(CTX, &premiseClaim1)
+	assert.Error(t, err)
+	assert.Equal(t, "This claim has already been added as a premise.", err.Error())
+
+}
+
+func TestClaimHasCycle(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "The cycle of life continues",
+		Description: "This is for the Claim HasCycle test",
+		Image:       "https://cdn5.vectorstock.com/i/1000x1000/41/39/life-cycle-of-a-chicken-for-kids-vector-4924139.jpg",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "First has cycle argument",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Second has cycle argument",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	has, err := claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.False(t, has)
+
+	arg := Argument{
+		TargetArgumentID: &arg1.ID,
+		ClaimID:          claim.ID,
+		Title:            "This is the argument that's going to mess it up for everyone",
+		Pro:              false,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.True(t, has)
+
+	err = arg.Delete(CTX)
+	assert.NoError(t, err)
+
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.False(t, has)
+
+	claim.QueryAt = support.TimePtr(arg.CreatedAt)
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.True(t, has)
+
+	claim.QueryAt = nil
+
+	arga := Argument{
+		TargetArgumentID: &arg1.ID,
+		Title:            "Now we're going to go out of our way to complete a cycle",
+		Pro:              false,
+	}
+	err = arga.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argb := Argument{
+		TargetArgumentID: &arga.ID,
+		Title:            "And by that I mean way out of our way",
+		Pro:              true,
+	}
+	err = argb.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argbClaimId := argb.ClaimID
+	argc := Argument{
+		TargetClaimID: &argbClaimId,
+		Title:         "Yeah, pretty far out to create a cycle",
+		Pro:           true,
+	}
+	err = argc.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argcClaimId := argc.ClaimID
+	argd := Argument{
+		TargetClaimID: &argcClaimId,
+		ClaimID:       claim.ID,
+		Title:         "This should be far enough for the cycle",
+		Pro:           false,
+	}
+	err = argd.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.True(t, has)
+
+	err = argd.Delete(CTX)
+	assert.NoError(t, err)
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.False(t, has)
+
+	argcClaim := Claim{}
+	argcClaim.ID = argc.ClaimID
+	err = argcClaim.Load(CTX)
+	assert.NoError(t, err)
+	err = argcClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+
+	has, err = claim.HasCycle(CTX)
+	assert.NoError(t, err)
+	assert.True(t, has)
 }

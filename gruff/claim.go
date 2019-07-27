@@ -74,6 +74,12 @@ func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
 // Validator
 
 func (c Claim) ValidateForCreate() GruffError {
+	if len(c.Title) < 3 || len(c.Title) > 1000 {
+		return NewBusinessError("Title: must be between 3 and 1000 characters;")
+	}
+	if len(c.Description) > 0 && (len(c.Description) < 3 || len(c.Description) > 4000) {
+		return NewBusinessError("Description: must be blank, or between 3 and 4000 characters;")
+	}
 	return ValidateStruct(c)
 }
 
@@ -94,12 +100,25 @@ func (c Claim) ValidateField(f string) GruffError {
 // Creator
 
 func (c *Claim) Create(ctx *ServerContext) GruffError {
+	if err := c.ValidateForCreate(); err != nil {
+		return err
+	}
+
+	// Only allow one claim with the same ID that isn't deleted
+	if c.ID != "" {
+		oldClaim := Claim{}
+		oldClaim.ID = c.ID
+		err := oldClaim.Load(ctx)
+		if err != nil || (oldClaim.Key != "" && oldClaim.DeletedAt == nil) {
+			return NewBusinessError("A claim with the same ID already exists")
+		}
+	}
+
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
 	}
 
-	// TODO: validate for create
 	c.PrepareForCreate(ctx)
 
 	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
@@ -140,10 +159,10 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 			c.CollectionName(),
 			c.DateFilter(bindVars))
 		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer cursor.Close()
 		if err != nil {
 			return NewServerError(err.Error())
 		}
-		defer cursor.Close()
 		for cursor.HasMore() {
 			_, err := cursor.ReadDocument(ctx.Context, c)
 			if err != nil {
@@ -211,7 +230,7 @@ func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
 }
 
 // Updater
-// TODO: record UpdatedBy field
+
 func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
@@ -243,7 +262,6 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		return err
 	}
 
-	c.PrepareForCreate(ctx)
 	if err := c.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
@@ -335,23 +353,9 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 		return NewBusinessError("This claim has already been deleted")
 	}
 
-	c.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": c.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
 	// Delete any edges to or from this Claim
 	// TODO: How to handle deleting a Claim that is used as a BaseClaim
 	// Note that Delete is also used when versioning
-	// TODO: This would probably be faster just to execute a singe update query per edge type
 
 	// Find all edges going to old ver, make copy to new ver
 	if c.MultiPremise {
@@ -417,6 +421,19 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	// TODO: Contexts
 	// TODO: References
 
+	c.PrepareForDelete(ctx)
+	patch := map[string]interface{}{
+		"end": c.DeletedAt,
+	}
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
 	return nil
 }
 
@@ -431,6 +448,12 @@ func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 	if c.MultiPremise {
 		ctx.Rollback()
 		return NewBusinessError("Multi-premise claims can't have their own arguments. Arguments should be added directly to one of their premises.")
+	}
+
+	// TODO: Test
+	if a.ClaimID == c.ID {
+		ctx.Rollback()
+		return NewBusinessError("A claim cannot be used as an argument for or against itself. That's called \"Begging the Question\".")
 	}
 
 	edge := Inference{
@@ -451,8 +474,35 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		return NewServerError("Premise is nil")
 	}
 
+	// Check for premise loops
+	if premise.ID == c.ID {
+		ctx.Rollback()
+		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
+	}
+
+	hasPremise, err := premise.HasPremise(ctx, c.ArangoID())
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if hasPremise {
+		ctx.Rollback()
+		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
+	}
+
+	hasPremise, err = c.HasPremise(ctx, premise.ArangoID())
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if hasPremise {
+		ctx.Rollback()
+		return NewBusinessError("This claim has already been added as a premise.")
+	}
+
 	c.QueryAt = nil
 	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		ctx.Rollback()
 		return err
 	}
 
@@ -558,6 +608,28 @@ func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
 	return nil
 }
 
+func (c Claim) HasPremise(ctx *ServerContext, premiseArangoId string) (bool, GruffError) {
+	db := ctx.Arango.DB
+
+	qctx := arango.WithQueryCount(ctx.Context)
+	bindVars := map[string]interface{}{
+		"rootc":   c.ArangoID(),
+		"targetc": premiseArangoId,
+	}
+	query := `FOR v IN 1..5 OUTBOUND @rootc premises
+                              FILTER v._id == @targetc
+                              FILTER v.end == null
+                              RETURN v._key`
+	//                               PRUNE v._id == @targetc
+	cursor, err := db.Query(qctx, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return false, NewServerError(err.Error())
+	}
+	n := cursor.Count()
+	return n > 0, nil
+}
+
 func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 	db := ctx.Arango.DB
 	args := []Argument{}
@@ -577,10 +649,10 @@ func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 		c.DateFilter(bindVars),
 	)
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return args, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		arg := Argument{}
 		_, err := cursor.ReadDocument(ctx.Context, &arg)
@@ -611,10 +683,10 @@ func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffE
 		c.DateFilter(bindVars),
 	)
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return args, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		arg := Argument{}
 		_, err := cursor.ReadDocument(ctx.Context, &arg)
@@ -647,10 +719,10 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
 			c.DateFilter(bindVars),
 		)
 		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer CloseCursor(cursor)
 		if err != nil {
 			return premises, NewServerError(err.Error())
 		}
-		defer cursor.Close()
 		for cursor.HasMore() {
 			claim := Claim{}
 			_, err := cursor.ReadDocument(ctx.Context, &claim)
@@ -752,10 +824,10 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
 		PremiseEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return edges, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		edge := PremiseEdge{}
 		_, err := cursor.ReadDocument(ctx.Context, &edge)
@@ -786,10 +858,10 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
 			PremiseEdge{}.CollectionName(),
 			c.DateFilter(bindVars))
 		cursor, err := db.Query(qctx, query, bindVars)
+		defer CloseCursor(cursor)
 		if err != nil {
 			return n, NewServerError(err.Error())
 		}
-		defer cursor.Close()
 		n = cursor.Count()
 	}
 	return n, nil
@@ -810,10 +882,10 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, GruffError
 		PremiseEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return edges, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		edge := PremiseEdge{}
 		_, err := cursor.ReadDocument(ctx.Context, &edge)
@@ -841,10 +913,10 @@ func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
 		Inference{}.CollectionName(),
 		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return edges, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		edge := Inference{}
 		_, err := cursor.ReadDocument(ctx.Context, &edge)
@@ -872,10 +944,10 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 		BaseClaimEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
 	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
 	if err != nil {
 		return edges, NewServerError(err.Error())
 	}
-	defer cursor.Close()
 	for cursor.HasMore() {
 		edge := BaseClaimEdge{}
 		_, err := cursor.ReadDocument(ctx.Context, &edge)
@@ -951,6 +1023,30 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 	}
 }
 */
+
+func (c Claim) HasCycle(ctx *ServerContext) (bool, GruffError) {
+	db := ctx.Arango.DB
+
+	qctx := arango.WithQueryCount(ctx.Context)
+	bindVars := map[string]interface{}{
+		"claim": c.ArangoID(),
+	}
+	// TODO: Add PRUNE?
+	query := fmt.Sprintf(`FOR v, obj IN 1..10 OUTBOUND @claim 
+                                inferences, base_claims, premises
+                              FILTER v._id == @claim
+                              %s
+                              RETURN v._key`,
+		c.DateFilter(bindVars))
+	//                               PRUNE v._id == @targetc
+	cursor, err := db.Query(qctx, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return false, NewServerError(err.Error())
+	}
+	n := cursor.Count()
+	return n > 0, nil
+}
 
 // Queries
 
