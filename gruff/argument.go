@@ -170,10 +170,10 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 		return NewServerError(dberr.Error())
 	}
 
-	edge := BaseClaimEdge{
+	edge := BaseClaimEdge{Edge: Edge{
 		From: a.ArangoID(),
 		To:   baseClaim.ArangoID(),
-	}
+	}}
 
 	if err := edge.Create(ctx); err != nil {
 		ctx.Rollback()
@@ -342,10 +342,10 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 		return err
 	}
 	for _, edge := range inferences {
-		newEdge := Inference{
+		newEdge := Inference{Edge: Edge{
 			From: a.ArangoID(),
 			To:   edge.To,
-		}
+		}}
 		if err := newEdge.Create(ctx); err != nil {
 			ctx.Rollback()
 			return err
@@ -358,10 +358,10 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 		ctx.Rollback()
 		return err
 	}
-	newInference := Inference{
+	newInference := Inference{Edge: Edge{
 		From: inference.From,
 		To:   a.ArangoID(),
-	}
+	}}
 	if err := newInference.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
@@ -373,10 +373,10 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 		ctx.Rollback()
 		return err
 	}
-	newBaseClaimEdge := BaseClaimEdge{
+	newBaseClaimEdge := BaseClaimEdge{Edge: Edge{
 		From: baseClaimEdge.From,
 		To:   a.ArangoID(),
-	}
+	}}
 	if err := newBaseClaimEdge.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
@@ -458,10 +458,10 @@ func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
 		return err
 	}
 
-	edge := Inference{
+	edge := Inference{Edge: Edge{
 		From: a.ArangoID(),
 		To:   arg.ArangoID(),
-	}
+	}}
 
 	if err := edge.Create(ctx); err != nil {
 		ctx.Rollback()

@@ -2,6 +2,7 @@ package gruff
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/GruffDebate/server/support"
@@ -49,7 +50,7 @@ type Claim struct {
 	ProArgs       []Argument `json:"proargs"`
 	ConArgs       []Argument `json:"conargs"`
 	Links         []Link     `json:"links,omitempty"`
-	Contexts      []Context  `json:"contexts,omitempty"`
+	ContextElems  []Context  `json:"contexts,omitempty"`
 	ContextIDs    []uint64   `json:"contextIds,omitempty"`
 }
 
@@ -153,7 +154,7 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 		query := fmt.Sprintf(`FOR obj IN %s 
                                        FILTER obj.id == @id
                                        %s
-                                       SORT obj.start DESC 
+                                       SORT obj.start DESC
                                        LIMIT 1 
                                        RETURN obj`,
 			c.CollectionName(),
@@ -276,8 +277,10 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		}
 		for _, edge := range premiseEdges {
 			newEdge := PremiseEdge{
-				From:  c.ArangoID(),
-				To:    edge.To,
+				Edge: Edge{
+					From: c.ArangoID(),
+					To:   edge.To,
+				},
 				Order: edge.Order,
 			}
 			if err := newEdge.Create(ctx); err != nil {
@@ -294,10 +297,10 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		return err
 	}
 	for _, edge := range inferences {
-		newEdge := Inference{
+		newEdge := Inference{Edge: Edge{
 			From: c.ArangoID(),
 			To:   edge.To,
-		}
+		}}
 		if err := newEdge.Create(ctx); err != nil {
 			ctx.Rollback()
 			return err
@@ -311,10 +314,10 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		return err
 	}
 	for _, edge := range baseClaimEdges {
-		newEdge := BaseClaimEdge{
+		newEdge := BaseClaimEdge{Edge: Edge{
 			From: edge.From,
 			To:   c.ArangoID(),
-		}
+		}}
 		if err := newEdge.Create(ctx); err != nil {
 			ctx.Rollback()
 			return err
@@ -329,8 +332,10 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 	}
 	for _, edge := range premiseEdges {
 		newEdge := PremiseEdge{
-			From:  edge.From,
-			To:    c.ArangoID(),
+			Edge: Edge{
+				From: edge.From,
+				To:   c.ArangoID(),
+			},
 			Order: edge.Order,
 		}
 		if err := newEdge.Create(ctx); err != nil {
@@ -437,7 +442,7 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// Business methods
+// Arguments
 
 func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
@@ -456,10 +461,10 @@ func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 		return NewBusinessError("A claim cannot be used as an argument for or against itself. That's called \"Begging the Question\".")
 	}
 
-	edge := Inference{
+	edge := Inference{Edge: Edge{
 		From: c.ArangoID(),
 		To:   a.ArangoID(),
-	}
+	}}
 
 	if err := edge.Create(ctx); err != nil {
 		ctx.Rollback()
@@ -467,6 +472,108 @@ func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 	}
 	return nil
 }
+
+func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
+	db := ctx.Arango.DB
+	args := []Argument{}
+
+	bindVars := map[string]interface{}{
+		"claim": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._to == a._id
+                                      AND obj._from == @claim
+                                   %s
+                                   SORT a.start ASC
+                                   RETURN a`,
+		Inference{}.CollectionName(),
+		Argument{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return args, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		arg := Argument{}
+		_, err := cursor.ReadDocument(ctx.Context, &arg)
+		if err != nil {
+			return args, NewServerError(err.Error())
+		}
+		args = append(args, arg)
+	}
+
+	return args, nil
+}
+
+func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffError) {
+	db := ctx.Arango.DB
+	args := []Argument{}
+
+	bindVars := map[string]interface{}{
+		"claim": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._from == a._id
+                                      AND obj._to == @claim
+                                   %s
+                                   RETURN a`,
+		BaseClaimEdge{}.CollectionName(),
+		Argument{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return args, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		arg := Argument{}
+		_, err := cursor.ReadDocument(ctx.Context, &arg)
+		if err != nil {
+			return args, NewServerError(err.Error())
+		}
+		args = append(args, arg)
+	}
+
+	return args, nil
+}
+
+// TODO: this could most definitely be made more generic...
+func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
+	db := ctx.Arango.DB
+	edges := []Inference{}
+
+	bindVars := map[string]interface{}{
+		"from": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                %s
+                                RETURN obj`,
+		Inference{}.CollectionName(),
+		c.DateFilter(bindVars))
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return edges, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		edge := Inference{}
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edges, NewServerError(err.Error())
+		}
+		edges = append(edges, edge)
+	}
+
+	return edges, nil
+}
+
+// Premises
 
 func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	if premise == nil {
@@ -536,8 +643,10 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	}
 
 	edge := PremiseEdge{
-		From:  c.ArangoID(),
-		To:    premise.ArangoID(),
+		Edge: Edge{
+			From: c.ArangoID(),
+			To:   premise.ArangoID(),
+		},
 		Order: int(max) + 1,
 	}
 
@@ -628,75 +737,6 @@ func (c Claim) HasPremise(ctx *ServerContext, premiseArangoId string) (bool, Gru
 	}
 	n := cursor.Count()
 	return n > 0, nil
-}
-
-func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
-	db := ctx.Arango.DB
-	args := []Argument{}
-
-	bindVars := map[string]interface{}{
-		"claim": c.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s
-                                 FOR a IN %s
-                                   FILTER obj._to == a._id
-                                      AND obj._from == @claim
-                                   %s
-                                   SORT a.start ASC
-                                   RETURN a`,
-		Inference{}.CollectionName(),
-		Argument{}.CollectionName(),
-		c.DateFilter(bindVars),
-	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
-}
-
-func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffError) {
-	db := ctx.Arango.DB
-	args := []Argument{}
-
-	bindVars := map[string]interface{}{
-		"claim": c.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s
-                                 FOR a IN %s
-                                   FILTER obj._from == a._id
-                                      AND obj._to == @claim
-                                   %s
-                                   RETURN a`,
-		BaseClaimEdge{}.CollectionName(),
-		Argument{}.CollectionName(),
-		c.DateFilter(bindVars),
-	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
 }
 
 func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
@@ -807,8 +847,6 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 	return premises, nil
 }
 
-// Edges
-
 func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
@@ -898,36 +936,7 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, GruffError
 	return edges, nil
 }
 
-// TODO: this could most definitely be made more generic...
-func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
-	db := ctx.Arango.DB
-	edges := []Inference{}
-
-	bindVars := map[string]interface{}{
-		"from": c.ArangoID(),
-	}
-	query := fmt.Sprintf(`FOR obj IN %s 
-                                FILTER obj._from == @from
-                                %s
-                                RETURN obj`,
-		Inference{}.CollectionName(),
-		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := Inference{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
-}
+// Arguments that use this Claim
 
 // TODO: this could most definitely be made more generic...
 func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) {
@@ -950,6 +959,157 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 	}
 	for cursor.HasMore() {
 		edge := BaseClaimEdge{}
+		_, err := cursor.ReadDocument(ctx.Context, &edge)
+		if err != nil {
+			return edges, NewServerError(err.Error())
+		}
+		edges = append(edges, edge)
+	}
+
+	return edges, nil
+}
+
+// Contexts
+func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
+	if c.MultiPremise {
+		// TODO: get Contexts for MP Claim should sum up the ctxs for all the subclaims?
+		// TODO: Changing Claim to MP Claim should do what to the existing contexts?
+		ctx.Rollback()
+		return NewBusinessError("Multi-premise claims inherit the union of contexts from all their premises")
+	}
+
+	// Check for duplicates
+	contexts, err := c.Contexts(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, con := range contexts {
+		if con.Key == context.Key {
+			ctx.Rollback()
+			return NewBusinessError("This context was already added to this claim")
+		}
+	}
+
+	c.QueryAt = nil
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	edge := ContextEdge{Edge: Edge{
+		From: context.ArangoID(),
+		To:   c.ArangoID(),
+	}}
+
+	if err := edge.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+	return nil
+}
+
+func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoId string) GruffError {
+	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+		return err
+	}
+
+	edge, err := FindContextEdge(ctx, contextArangoId, c.ArangoID())
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	if err := edge.Delete(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	return nil
+}
+
+func (c Claim) Contexts(ctx *ServerContext) ([]Context, GruffError) {
+	db := ctx.Arango.DB
+	contexts := []Context{}
+
+	if c.MultiPremise {
+		// TODO: Do this in a single query
+		m := map[string]Context{}
+		premises, err := c.Premises(ctx)
+		if err != nil {
+			return contexts, err
+		}
+		for _, premise := range premises {
+			premise.QueryAt = c.QueryAt
+			pctx, err := premise.Contexts(ctx)
+			if err != nil {
+				return contexts, err
+			}
+			for _, context := range pctx {
+				if _, ok := m[context.Key]; !ok {
+					contexts = append(contexts, context)
+					m[context.Key] = context
+				}
+			}
+			sort.Slice(contexts, func(i, j int) bool {
+				return contexts[i].ShortName < contexts[j].ShortName
+			})
+		}
+	} else {
+		bindVars := map[string]interface{}{
+			"claim": c.ArangoID(),
+		}
+		query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR c IN %s
+                                   FILTER obj._to == @claim
+                                      AND obj._from == c._id
+                                   %s
+                                   SORT c.name
+                                   RETURN c`,
+			ContextEdge{}.CollectionName(),
+			Context{}.CollectionName(),
+			c.DateFilter(bindVars),
+		)
+
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer CloseCursor(cursor)
+		if err != nil {
+			return contexts, NewServerError(err.Error())
+		}
+		for cursor.HasMore() {
+			context := Context{}
+			_, err := cursor.ReadDocument(ctx.Context, &context)
+			if err != nil {
+				return contexts, NewServerError(err.Error())
+			}
+			contexts = append(contexts, context)
+		}
+	}
+
+	return contexts, nil
+}
+
+func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, GruffError) {
+	db := ctx.Arango.DB
+	edges := []ContextEdge{}
+
+	bindVars := map[string]interface{}{
+		"to": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._to == @to 
+                                %s
+                                SORT obj.start
+                                RETURN obj`,
+		ContextEdge{}.CollectionName(),
+		c.DateFilter(bindVars))
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return edges, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		edge := ContextEdge{}
 		_, err := cursor.ReadDocument(ctx.Context, &edge)
 		if err != nil {
 			return edges, NewServerError(err.Error())
@@ -1024,6 +1184,9 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 }
 */
 
+// Graph methods
+
+// TODO: THis could use the named graph debate_map
 func (c Claim) HasCycle(ctx *ServerContext) (bool, GruffError) {
 	db := ctx.Arango.DB
 

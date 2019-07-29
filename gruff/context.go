@@ -1,5 +1,9 @@
 package gruff
 
+import (
+	"fmt"
+)
+
 /*
  * Forgive us the confusion between ServerContext and Context!
  *
@@ -25,16 +29,16 @@ package gruff
 
 type Context struct {
 	Model
-	ParentID         *uint64   `json:"parentId"`
-	Parent           *Context  `json:"parent,omitempty"`
-	Title            string    `json:"title" sql:"not null" valid:"length(3|1000)"`
+	ShortName        string    `json:"name" valid:"length(1|60),required"`
+	Title            string    `json:"title" sql:"not null" valid:"length(3|1000),required"`
 	Description      string    `json:"desc" valid:"length(3|4000)"`
 	URL              string    `json:"url" valid:"url,required"`
-	MID              string    `json:"mid"` // Google KG ID
-	QID              string    `json:"qid"` // Wikidata ID
-	MetaDataURL      *MetaData `json:"meta_url"`
-	MetaDataGoogle   *MetaData `json:"meta_google"`
-	MetaDataWikidata *MetaData `json:"meta_wikidata"`
+	MID              string    `json:"mid,omitempty"` // Google KG ID
+	QID              string    `json:"qid,omitempty"` // Wikidata ID
+	MetaDataURL      *MetaData `json:"meta_url,omitempty"`
+	MetaDataGoogle   *MetaData `json:"meta_google,omitempty"`
+	MetaDataWikidata *MetaData `json:"meta_wikidata,omitempty"`
+	// TODO: add other KBs
 }
 
 type MetaData struct {
@@ -43,6 +47,26 @@ type MetaData struct {
 	Image       string `json:"image"`
 	URL         string `json:"url"`
 }
+
+// ArangoObject interface
+
+func (c Context) CollectionName() string {
+	return "contexts"
+}
+
+func (c Context) ArangoKey() string {
+	return c.Key
+}
+
+func (c Context) ArangoID() string {
+	return fmt.Sprintf("%s/%s", c.CollectionName(), c.ArangoKey())
+}
+
+func (c Context) DefaultQueryParameters() ArangoQueryParameters {
+	return DEFAULT_QUERY_PARAMETERS
+}
+
+// Validator
 
 func (c Context) ValidateForCreate() GruffError {
 	return ValidateStruct(c)
@@ -57,4 +81,58 @@ func (c Context) ValidateForUpdate(updates map[string]interface{}) GruffError {
 
 func (c Context) ValidateField(f string) GruffError {
 	return ValidateStructField(c, f)
+}
+
+// Creator
+// TODO: Test validations, etc.
+func (c *Context) Create(ctx *ServerContext) GruffError {
+	if err := c.ValidateForCreate(); err != nil {
+		return err
+	}
+
+	// TODO: Unique indexes? Unique checks?
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+
+	c.PrepareForCreate(ctx)
+
+	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
+		ctx.Rollback()
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
+// Business methods
+
+func FindContext(ctx *ServerContext, contextArangoId string) (Context, GruffError) {
+	db := ctx.Arango.DB
+
+	context := Context{}
+	bindVars := map[string]interface{}{
+		"context": contextArangoId,
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                      FILTER obj._id == @context
+                                       LIMIT 1
+                                      RETURN obj`,
+		Context{}.CollectionName(),
+	)
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return context, NewServerError(err.Error())
+	}
+	for cursor.HasMore() {
+		_, err := cursor.ReadDocument(ctx.Context, &context)
+		if err != nil {
+			return context, NewServerError(err.Error())
+		}
+	}
+
+	return context, nil
 }

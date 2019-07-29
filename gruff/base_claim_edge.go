@@ -8,8 +8,6 @@ import (
 // (the true/false part of the Argument)
 type BaseClaimEdge struct {
 	Edge
-	From string `json:"_from,omitempty"`
-	To   string `json:"_to,omitempty"`
 }
 
 // ArangoObject interface

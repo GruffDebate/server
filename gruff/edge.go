@@ -13,6 +13,8 @@ type Edge struct {
 	CreatedAt   time.Time  `json:"start"`
 	DeletedAt   *time.Time `json:"end"`
 	CreatedByID string     `json:"creator"`
+	From        string     `json:"_from,omitempty"`
+	To          string     `json:"_to,omitempty"`
 }
 
 func (e Edge) ValidateForCreate() GruffError {

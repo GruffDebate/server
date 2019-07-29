@@ -1709,3 +1709,346 @@ func TestClaimHasCycle(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, has)
 }
+
+func TestClaimAddContext(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "Here we have a claim that is all about adding Context.",
+		Description:  "Add Context. That's what it's about.",
+		Image:        "http://danieleizans.com/wp-content/uploads/2011/01/ContextInCS.jpg",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	ctx1 := Context{ShortName: "AddContext Goodies", Title: "Goody Goody Yum Yum", URL: "https://en.wikipedia.org/wiki/The_Goodies_(TV_series)"}
+	err = ctx1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.AddContext(CTX, ctx1)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Assert that the proper link has been created
+	contextEdges, err := claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+
+	contexts, err := claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(contexts))
+	assert.Equal(t, ctx1.ArangoID(), contexts[0].ArangoID())
+
+	ctx2 := Context{ShortName: "AddContext Politics", Title: "Politics in general", URL: "https://en.wikipedia.org/wiki/Politics"}
+	ctx3 := Context{ShortName: "AddContext Comedy", Title: "Politics is always funny", URL: "https://en.wikipedia.org/wiki/Comedy"}
+	err = ctx2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	err = ctx3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.AddContext(CTX, ctx2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	err = claim.AddContext(CTX, ctx3)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	threeCtxTime := time.Now()
+
+	contextEdges, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[1].To)
+	assert.Equal(t, ctx2.ArangoID(), contextEdges[1].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[2].To)
+	assert.Equal(t, ctx3.ArangoID(), contextEdges[2].From)
+
+	contexts, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	// Remove a Context
+	err = claim.RemoveContext(CTX, ctx2.ArangoID())
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	twoCtxTime := time.Now()
+
+	ctx2, err = FindContext(CTX, ctx2.ArangoID())
+	assert.NoError(t, err)
+	assert.Nil(t, ctx2.DeletedAt)
+
+	contextEdges, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[1].To)
+	assert.Equal(t, ctx3.ArangoID(), contextEdges[1].From)
+
+	contexts, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+
+	// Query Contexts at a point in time
+	claim.QueryAt = &threeCtxTime
+	contextEdges, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[1].To)
+	assert.Equal(t, ctx2.ArangoID(), contextEdges[1].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[2].To)
+	assert.Equal(t, ctx3.ArangoID(), contextEdges[2].From)
+	assert.NotNil(t, contextEdges[1].DeletedAt)
+
+	contexts, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	// Add removed Context again
+	claim.QueryAt = nil
+	err = claim.AddContext(CTX, ctx2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	contextEdges, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[1].To)
+	assert.Equal(t, ctx3.ArangoID(), contextEdges[1].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[2].To)
+	assert.Equal(t, ctx2.ArangoID(), contextEdges[2].From)
+
+	contexts, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	// Query back in time
+	claim.QueryAt = &twoCtxTime
+	contextEdges, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contextEdges))
+	assert.Equal(t, claim.ArangoID(), contextEdges[0].To)
+	assert.Equal(t, ctx1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), contextEdges[1].To)
+	assert.Equal(t, ctx3.ArangoID(), contextEdges[1].From)
+
+	contexts, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+
+	// Try to add repeat Context
+	claim.QueryAt = nil
+	err = claim.AddContext(CTX, ctx3)
+	assert.Error(t, err)
+	assert.Equal(t, "This context was already added to this claim", err.Error())
+
+	// Add to an MP Claim
+	mpClaim := Claim{Title: "MP Claim in an AddContext world", MultiPremise: true, PremiseRule: PREMISE_RULE_ALL}
+	err = mpClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = mpClaim.AddContext(CTX, ctx1)
+	assert.Error(t, err)
+	assert.Equal(t, "Multi-premise claims inherit the union of contexts from all their premises", err.Error())
+
+	// Get Contexts from MP Claim
+	claim.Key = ""
+	claim.QueryAt = nil
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+
+	err = mpClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claim2 := Claim{Title: "A MultiPremise Premise in an AddContext world", MultiPremise: true, PremiseRule: PREMISE_RULE_ALL}
+	err = claim2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claim3 := Claim{Title: "A regular Premise in an AddContext world"}
+	err = claim3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claim4 := Claim{Title: "A redundant Premise in an AddContext world"}
+	err = claim4.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim2.AddPremise(CTX, &claim3)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim2.AddPremise(CTX, &claim4)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = mpClaim.AddPremise(CTX, &claim2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim3.AddContext(CTX, ctx2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim3.AddContext(CTX, ctx3)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim4.AddContext(CTX, ctx1)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim4.AddContext(CTX, ctx3)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	ctx4 := Context{ShortName: "AddContext One Last Tim", Title: "One last new context", URL: "https://en.wikipedia.org/wiki/One_Last_Time"}
+	err = ctx4.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim3.AddContext(CTX, ctx4)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Query MP Claim Contexts
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx4.ArangoID(), contexts[2].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[3].ArangoID())
+
+	// Delete and query at points in time
+	err = claim.RemoveContext(CTX, ctx1.ArangoID())
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx1.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx4.ArangoID(), contexts[2].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[3].ArangoID())
+
+	err = claim4.RemoveContext(CTX, ctx1.ArangoID())
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	threeCtxTime = time.Now()
+
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx4.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	err = claim3.RemoveContext(CTX, ctx4.ArangoID())
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[1].ArangoID())
+
+	mpClaim.QueryAt = &threeCtxTime
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx4.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	err = claim4.AddContext(CTX, ctx4)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	mpClaim.QueryAt = nil
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx4.ArangoID(), contexts[1].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
+
+	// TODO: delete context edges
+	err = claim4.Delete(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	contextEdges, err = mpClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(contextEdges))
+
+	contexts, err = mpClaim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contexts))
+	assert.Equal(t, ctx3.ArangoID(), contexts[0].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), contexts[1].ArangoID())
+
+	// Add to deleted Claim
+	err = claim4.AddContext(CTX, ctx1)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim that has already been deleted, or has a newer version, cannot be modified.", err.Error())
+}

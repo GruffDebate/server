@@ -8,8 +8,6 @@ import (
 // to the Argument that is making the inference
 type Inference struct {
 	Edge
-	From string `json:"_from,omitempty"`
-	To   string `json:"_to,omitempty"`
 }
 
 // ArangoObject interface

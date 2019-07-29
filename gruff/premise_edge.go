@@ -8,9 +8,7 @@ import (
 // to one of the Claims that represents a specific premise
 type PremiseEdge struct {
 	Edge
-	From  string `json:"_from,omitempty"`
-	To    string `json:"_to,omitempty"`
-	Order int    `json:"order"`
+	Order int `json:"order"`
 }
 
 // ArangoObject interface

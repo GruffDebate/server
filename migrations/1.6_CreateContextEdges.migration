@@ -1,0 +1,14 @@
+type: graph
+action: create
+name: context_graph
+edgedefinitions:
+   - collection: context_edges
+     from: 
+         - contexts
+     to:
+         - claims
+   - collection: context_parents
+     from: 
+         - contexts
+     to:
+         - contexts
