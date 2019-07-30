@@ -72,6 +72,29 @@ func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
+// Restrictor
+// TODO: Test
+// TODO: Call in CRUD and other methods
+func (c Claim) UserCanView(ctx *ServerContext) (bool, GruffError) {
+	return true, nil
+}
+
+func (c Claim) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+	return ctx.UserLoggedIn(), nil
+}
+
+func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+	return c.UserCanDelete(ctx)
+}
+
+func (c Claim) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+	u := ctx.UserContext
+	if u.Curator {
+		return true, nil
+	}
+	return c.CreatedByID == u.ArangoID(), nil
+}
+
 // Validator
 
 func (c Claim) ValidateForCreate() GruffError {
@@ -94,6 +117,13 @@ func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	return c.ValidateForCreate()
 }
 
+func (c Claim) ValidateForDelete() GruffError {
+	if c.DeletedAt != nil {
+		return NewBusinessError("This claim has already been deleted or versioned.")
+	}
+	return nil
+}
+
 func (c Claim) ValidateField(f string) GruffError {
 	return ValidateStructField(c, f)
 }
@@ -103,6 +133,15 @@ func (c Claim) ValidateField(f string) GruffError {
 func (c *Claim) Create(ctx *ServerContext) GruffError {
 	if err := c.ValidateForCreate(); err != nil {
 		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanCreate(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You must be logged in to create this item")
 	}
 
 	// Only allow one claim with the same ID that isn't deleted
@@ -237,6 +276,15 @@ func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Gruff
 		return err
 	}
 
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
@@ -366,12 +414,21 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 	return nil
 }
 
+// Deleter
+
 func (c *Claim) Delete(ctx *ServerContext) GruffError {
-	// TODO: validate for delete, including having no anythig
-	// ... unless versioning
 	// TODO: test
-	if c.DeletedAt != nil {
-		return NewBusinessError("This claim has already been deleted")
+	if err := c.ValidateForDelete(); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanDelete(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to delete this item")
 	}
 
 	// Delete any edges to or from this Claim
@@ -473,8 +530,18 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 // Arguments
 
 func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+	updates := map[string]interface{}{}
+	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
 	}
 
 	// TODO: Test
@@ -609,6 +676,23 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		return NewServerError("Premise is nil")
 	}
 
+	c.QueryAt = nil
+	updates := map[string]interface{}{}
+
+	if err := c.ValidateForUpdate(updates); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
 	// Check for premise loops
 	if premise.ID == c.ID {
 		ctx.Rollback()
@@ -633,12 +717,6 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	if hasPremise {
 		ctx.Rollback()
 		return NewBusinessError("This claim has already been added as a premise.")
-	}
-
-	c.QueryAt = nil
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
-		ctx.Rollback()
-		return err
 	}
 
 	if premise.Key == "" {
@@ -686,8 +764,18 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 }
 
 func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+	updates := map[string]interface{}{}
+	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
 	}
 
 	if !c.MultiPremise {
@@ -811,8 +899,18 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 	premises := []Claim{}
 
 	// TODO: test
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+	updates := map[string]interface{}{}
+	if err := c.ValidateForUpdate(updates); err != nil {
 		return premises, err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return premises, err
+	}
+	if !can {
+		return premises, NewPermissionError("You do not have permission to modify this item")
 	}
 
 	if new <= 0 {
@@ -1002,6 +1100,22 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 
 // Contexts
 func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
+	c.QueryAt = nil
+	updates := map[string]interface{}{}
+	if err := c.ValidateForUpdate(updates); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
 	if c.MultiPremise {
 		// TODO: get Contexts for MP Claim should sum up the ctxs for all the subclaims?
 		// TODO: Changing Claim to MP Claim should do what to the existing contexts?
@@ -1022,12 +1136,6 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
 		}
 	}
 
-	c.QueryAt = nil
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
-		ctx.Rollback()
-		return err
-	}
-
 	edge := ContextEdge{Edge: Edge{
 		From: context.ArangoID(),
 		To:   c.ArangoID(),
@@ -1041,8 +1149,18 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
 }
 
 func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) GruffError {
-	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
+	updates := map[string]interface{}{}
+	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
 	}
 
 	edge, err := FindContextEdge(ctx, contextArangoKey, c.ArangoKey())

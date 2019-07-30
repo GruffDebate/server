@@ -10,6 +10,7 @@ import (
 type Validator interface {
 	ValidateForCreate() GruffError
 	ValidateForUpdate(map[string]interface{}) GruffError
+	ValidateForDelete() GruffError
 	ValidateField(string) GruffError
 }
 
@@ -76,6 +77,7 @@ func ValidateRequiredFields(item interface{}, fields []string) GruffError {
 	return nil
 }
 
+// TODO: I think there's a reflect.Zero(Type) method that should simplify this. First, make sure tests are in place.
 func IsEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.String, reflect.Array:

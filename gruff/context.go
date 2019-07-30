@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/GruffDebate/server/support"
+	arango "github.com/arangodb/go-driver"
 )
 
 /*
@@ -72,6 +73,26 @@ func (c Context) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS.Merge(params)
 }
 
+// Restrictor
+// TODO: Test
+// TODO: Call in CRUD and other methods
+func (c Context) UserCanView(ctx *ServerContext) (bool, GruffError) {
+	return true, nil
+}
+
+func (c Context) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+	return ctx.UserLoggedIn(), nil
+}
+
+func (c Context) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+	return c.UserCanDelete(ctx)
+}
+
+func (c Context) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+	u := ctx.UserContext
+	return u.Curator, nil
+}
+
 // Validator
 
 func (c Context) ValidateForCreate() GruffError {
@@ -83,6 +104,10 @@ func (c Context) ValidateForUpdate(updates map[string]interface{}) GruffError {
 		return err
 	}
 	return c.ValidateForCreate()
+}
+
+func (c Context) ValidateForDelete() GruffError {
+	return nil
 }
 
 func (c Context) ValidateField(f string) GruffError {
@@ -97,6 +122,15 @@ func (c *Context) Create(ctx *ServerContext) GruffError {
 	}
 
 	// TODO: Unique indexes? Unique checks?
+
+	// TODO: Test
+	can, err := c.UserCanCreate(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You must be logged in to create this item")
+	}
 
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
@@ -113,7 +147,69 @@ func (c *Context) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
+// Deleter
+
+// TODO: Test
+func (c *Context) Delete(ctx *ServerContext) GruffError {
+	// TODO: test
+	if err := c.ValidateForDelete(); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanDelete(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to delete this item")
+	}
+
+	n, err := c.NumberOfClaims(ctx)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return NewBusinessError("A context cannot be deleted if it's used by any claims")
+	}
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.RemoveDocument(ctx.Context, c.ArangoKey())
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
 // Business methods
+
+// TODO: TEst
+func (c Context) NumberOfClaims(ctx *ServerContext) (int64, GruffError) {
+	db := ctx.Arango.DB
+
+	qctx := arango.WithQueryCount(ctx.Context)
+
+	var n int64
+	bindVars := map[string]interface{}{
+		"from": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._from == @from
+                                RETURN obj`,
+		ContextEdge{}.CollectionName())
+	cursor, err := db.Query(qctx, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return n, NewServerError(err.Error())
+	}
+	n = cursor.Count()
+
+	return n, nil
+}
 
 func FindContext(ctx *ServerContext, contextArangoId string) (Context, GruffError) {
 	db := ctx.Arango.DB

@@ -87,6 +87,29 @@ func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
+// Restrictor
+// TODO: Test
+// TODO: Call in CRUD and other methods
+func (a Argument) UserCanView(ctx *ServerContext) (bool, GruffError) {
+	return true, nil
+}
+
+func (a Argument) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+	return ctx.UserLoggedIn(), nil
+}
+
+func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+	return a.UserCanDelete(ctx)
+}
+
+func (a Argument) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+	u := ctx.UserContext
+	if u.Curator {
+		return true, nil
+	}
+	return a.CreatedByID == u.ArangoID(), nil
+}
+
 // Validator
 
 func (a Argument) ValidateForCreate() GruffError {
@@ -112,6 +135,13 @@ func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	return a.ValidateForCreate()
 }
 
+func (a Argument) ValidateForDelete() GruffError {
+	if a.DeletedAt != nil {
+		return NewBusinessError("This argument has already been deleted or versioned.")
+	}
+	return nil
+}
+
 func (a Argument) ValidateField(f string) GruffError {
 	err := ValidateStructField(a, f)
 	return err
@@ -133,12 +163,19 @@ func (a Argument) ValidateIDs() GruffError {
 // Creator
 
 func (a *Argument) Create(ctx *ServerContext) GruffError {
+	// TODO: Test
+	can, err := a.UserCanCreate(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You must be logged in to create this item")
+	}
+
 	col, err := ctx.Arango.CollectionFor(a)
 	if err != nil {
 		return err
 	}
-
-	// TODO: validate for create
 
 	var baseClaim Claim
 	if a.ClaimID == "" {
@@ -161,6 +198,11 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 			ctx.Rollback()
 			return err
 		}
+	}
+
+	// TODO: Test
+	if err := a.ValidateForCreate(); err != nil {
+		return err
 	}
 
 	a.PrepareForCreate(ctx)
@@ -303,6 +345,15 @@ func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) Gr
 		return err
 	}
 
+	// TODO: Test
+	can, err := a.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
 	col, err := ctx.Arango.CollectionFor(a)
 	if err != nil {
 		return err
@@ -391,11 +442,18 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 // Deleter
 
 func (a *Argument) Delete(ctx *ServerContext) GruffError {
-	// TODO: validate for delete, including having no anything
-	// ... unless versioning
 	// TODO: test
-	if a.DeletedAt != nil {
-		return NewBusinessError("This argument has already been deleted")
+	if err := a.ValidateForDelete(); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := a.UserCanDelete(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to delete this item")
 	}
 
 	a.PrepareForDelete(ctx)
@@ -454,8 +512,18 @@ func (a *Argument) Delete(ctx *ServerContext) GruffError {
 
 func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
 	// TODO: test
-	if err := a.ValidateForUpdate(map[string]interface{}{}); err != nil {
+	updates := map[string]interface{}{}
+	if err := a.ValidateForUpdate(updates); err != nil {
 		return err
+	}
+
+	// TODO: Test
+	can, err := a.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
 	}
 
 	edge := Inference{Edge: Edge{

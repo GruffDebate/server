@@ -14,4 +14,6 @@ func TestIsUpdater(t *testing.T) {
 	assert.False(t, IsUpdater(reflect.TypeOf(&Inference{})))
 	assert.False(t, IsUpdater(reflect.TypeOf(&BaseClaimEdge{})))
 	assert.False(t, IsUpdater(reflect.TypeOf(&PremiseEdge{})))
+	assert.True(t, IsUpdater(reflect.TypeOf(&Context{})))
+	assert.False(t, IsUpdater(reflect.TypeOf(&ContextEdge{})))
 }

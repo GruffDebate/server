@@ -14,4 +14,6 @@ func TestIsCreator(t *testing.T) {
 	assert.True(t, IsCreator(reflect.TypeOf(&Inference{})))
 	assert.True(t, IsCreator(reflect.TypeOf(&BaseClaimEdge{})))
 	assert.True(t, IsCreator(reflect.TypeOf(&PremiseEdge{})))
+	assert.True(t, IsCreator(reflect.TypeOf(&Context{})))
+	assert.True(t, IsCreator(reflect.TypeOf(&ContextEdge{})))
 }

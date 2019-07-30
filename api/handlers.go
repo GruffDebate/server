@@ -11,6 +11,7 @@ import (
 
 // TODO: Handle query date
 func List(c echo.Context) error {
+	// TODO: check authorized
 	ctx := ServerContext(c)
 
 	item := reflect.New(ctx.Type).Interface().(gruff.ArangoObject)
@@ -105,6 +106,7 @@ func Get(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
+	var result interface{}
 	if gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
 		item := reflect.New(ctx.Type).Interface()
 		loader := item.(gruff.Loader)
@@ -122,15 +124,28 @@ func Get(c echo.Context) error {
 		if err != nil {
 			return AddGruffError(ctx, c, err)
 		}
-		return c.JSON(http.StatusOK, loader)
+		result = loader
 	} else {
-		result, err := gruff.GetArangoObject(ctx, ctx.Type, id)
+		item, err := gruff.GetArangoObject(ctx, ctx.Type, id)
 		if err != nil {
 			return AddGruffError(ctx, c, err)
 		}
-		return c.JSON(http.StatusOK, result)
+		result = item
 	}
 
+	if gruff.IsRestrictor(ctx.Type) {
+		r := result.(gruff.Restrictor)
+		canView, err := r.UserCanView(ctx)
+		if err != nil {
+			return AddGruffError(ctx, c, err)
+		}
+		if !canView {
+			return AddGruffError(ctx, c, gruff.NewPermissionError("You do not have permission to view this item"))
+		}
+
+	}
+
+	return c.JSON(http.StatusOK, result)
 }
 
 // TODO: GetQueryDateFromRequest

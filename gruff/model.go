@@ -1,7 +1,6 @@
 package gruff
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,36 +25,13 @@ func (m *Model) PrepareForCreate(ctx *ServerContext) {
 	return
 }
 
+func (m *Model) PrepareForDelete(ctx *ServerContext) {
+	m.DeletedAt = support.TimePtr(ctx.RequestTime())
+	return
+}
+
 type ReplaceMany struct {
 	IDS []uint64 `json:"ids"`
-}
-
-type ServerContext struct {
-	Context     context.Context
-	Arango      ArangoContext
-	Payload     map[string]interface{}
-	Request     map[string]interface{}
-	Type        reflect.Type
-	ParentType  reflect.Type
-	Test        bool
-	UserContext User
-	AppName     string
-	Method      string
-	Path        string
-	Endpoint    string
-	RequestID   string
-	RequestAt   *time.Time
-}
-
-func (ctx ServerContext) Rollback() GruffError {
-	return ctx.Arango.Rollback()
-}
-
-func (ctx *ServerContext) RequestTime() time.Time {
-	if ctx.RequestAt == nil {
-		ctx.RequestAt = support.TimePtr(time.Now())
-	}
-	return *ctx.RequestAt
 }
 
 func ModelToJson(model interface{}) string {
