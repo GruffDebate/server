@@ -272,6 +272,24 @@ func TestClaimUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
+	ctx1 := Context{ShortName: "UpdateClaim First One", Title: "First context for update claim", URL: "https://en.wikipedia.org/wiki/First_Ones"}
+	err = ctx1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	ctx2 := Context{ShortName: "UpdateClaim Second", Title: "Being first isn't everything", URL: "https://en.wikipedia.org/wiki/Second"}
+	err = ctx2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.AddContext(CTX, ctx1)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.AddContext(CTX, ctx2)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
 	// Next check edges, then version and recheck everything
 	premiseEdges, err := claim.PremiseEdges(CTX)
 	assert.NoError(t, err)
@@ -302,6 +320,20 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, 1, len(premiseEdges))
 	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+
+	ces, err := claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ces))
+	assert.Equal(t, ctx1.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+	assert.Equal(t, ctx2.ArangoID(), ces[1].From)
+	assert.Equal(t, claim.ArangoID(), ces[1].To)
+
+	ctxs, err := claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ctxs))
+	assert.Equal(t, ctx1.ArangoID(), ctxs[0].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), ctxs[1].ArangoID())
 
 	// Update the claim
 	curator := User{Username: "curator", Curator: true}
@@ -374,6 +406,20 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
 	assert.Nil(t, premiseEdges[0].DeletedAt)
 
+	ces, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ces))
+	assert.Equal(t, ctx1.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+	assert.Equal(t, ctx2.ArangoID(), ces[1].From)
+	assert.Equal(t, claim.ArangoID(), ces[1].To)
+
+	ctxs, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ctxs))
+	assert.Equal(t, ctx1.ArangoID(), ctxs[0].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), ctxs[1].ArangoID())
+
 	// Verify that the old edges were deleted
 	premiseEdges, err = origClaim.PremiseEdges(CTX)
 	assert.NoError(t, err)
@@ -407,6 +453,16 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, olderMpClaim.ArangoID(), premiseEdges[0].From)
 	assert.Equal(t, origClaim.ArangoID(), premiseEdges[0].To)
 	assert.NotNil(t, premiseEdges[0].DeletedAt)
+
+	ces, err = origClaim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ces))
+	assert.Equal(t, ctx1.ArangoID(), ces[0].From)
+	assert.Equal(t, origClaim.ArangoID(), ces[0].To)
+	assert.NotNil(t, ces[0].DeletedAt)
+	assert.Equal(t, ctx2.ArangoID(), ces[1].From)
+	assert.Equal(t, origClaim.ArangoID(), ces[1].To)
+	assert.NotNil(t, ces[1].DeletedAt)
 }
 
 func TestClaimUpdateMP(t *testing.T) {
@@ -1782,7 +1838,7 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
 
 	// Remove a Context
-	err = claim.RemoveContext(CTX, ctx2.ArangoID())
+	err = claim.RemoveContext(CTX, ctx2.ArangoKey())
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 	twoCtxTime := time.Now()
@@ -1957,7 +2013,7 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, ctx2.ArangoID(), contexts[3].ArangoID())
 
 	// Delete and query at points in time
-	err = claim.RemoveContext(CTX, ctx1.ArangoID())
+	err = claim.RemoveContext(CTX, ctx1.ArangoKey())
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
@@ -1973,7 +2029,7 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, ctx4.ArangoID(), contexts[2].ArangoID())
 	assert.Equal(t, ctx2.ArangoID(), contexts[3].ArangoID())
 
-	err = claim4.RemoveContext(CTX, ctx1.ArangoID())
+	err = claim4.RemoveContext(CTX, ctx1.ArangoKey())
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
@@ -1990,7 +2046,7 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, ctx4.ArangoID(), contexts[1].ArangoID())
 	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
 
-	err = claim3.RemoveContext(CTX, ctx4.ArangoID())
+	err = claim3.RemoveContext(CTX, ctx4.ArangoKey())
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 

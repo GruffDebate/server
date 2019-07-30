@@ -2,6 +2,8 @@ package gruff
 
 import (
 	"fmt"
+
+	"github.com/GruffDebate/server/support"
 )
 
 /*
@@ -63,7 +65,11 @@ func (c Context) ArangoID() string {
 }
 
 func (c Context) DefaultQueryParameters() ArangoQueryParameters {
-	return DEFAULT_QUERY_PARAMETERS
+	params := ArangoQueryParameters{
+		Sort: support.StringPtr("obj.name ASC"),
+	}
+
+	return DEFAULT_QUERY_PARAMETERS.Merge(params)
 }
 
 // Validator

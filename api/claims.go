@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/labstack/echo"
@@ -59,6 +60,49 @@ func ListClaims(which string) func(c echo.Context) error {
 
 		return c.JSON(http.StatusOK, claims)
 	}
+}
+
+func AddContext(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	parentId := c.Param("parentId")
+	id := c.Param("id")
+
+	claim := gruff.Claim{}
+	claim.Key = parentId
+	if err := claim.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	context, err := gruff.GetArangoObject(ctx, reflect.TypeOf(gruff.Context{}), id)
+	if err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	if err := claim.AddContext(ctx, *context.(*gruff.Context)); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, claim)
+}
+
+func RemoveContext(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	parentId := c.Param("parentId")
+	id := c.Param("id")
+
+	claim := gruff.Claim{}
+	claim.Key = parentId
+	if err := claim.Load(ctx); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	if err := claim.RemoveContext(ctx, id); err != nil {
+		return AddGruffError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, claim)
 }
 
 /*

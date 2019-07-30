@@ -60,14 +60,16 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	//private.POST("/arguments/:id/strength", SetScore)
 	//private.PUT("/arguments/:id/strength", SetScore)
 
-	//public.GET("/contexts", ListContext)
+	// TODO: Test all these
+	public.GET("/contexts", List)
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
-	private.PUT("/contexts/:id", Update)
-	//private.DELETE("/contexts/:id", Delete)
+	private.PUT("/contexts/:id", Update) // TODO: not updater
+	//private.DELETE("/contexts/:id", Delete) // TODO: not deleter
 
-	//private.POST("/claims/:parentId/contexts/:id", AddAssociation)
-	//private.DELETE("/claims/:parentId/contexts/:id", RemoveAssociation)
+	// TODO: Should contexts be added using the short name instead of the id?
+	private.POST("/claims/:parentId/contexts/:id", AddContext)
+	private.DELETE("/claims/:parentId/contexts/:id", RemoveContext)
 
 	//private.POST("/claims/:parentId/tags/:id", AddAssociation)
 	//private.DELETE("/claims/:parentId/tags/:id", RemoveAssociation)

@@ -176,3 +176,18 @@ func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVar
 
 	return objs, nil
 }
+
+func GetArangoObject(ctx *ServerContext, t reflect.Type, arangoKey string) (interface{}, GruffError) {
+	obj := reflect.New(t).Interface().(ArangoObject)
+
+	col, err := ctx.Arango.CollectionFor(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, dberr := col.ReadDocument(ctx.Context, arangoKey, obj); dberr != nil {
+		return nil, NewNotFoundError(dberr.Error())
+	}
+
+	return obj, nil
+}

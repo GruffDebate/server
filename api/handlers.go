@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo"
 )
 
+// TODO: Handle query date
 func List(c echo.Context) error {
 	ctx := ServerContext(c)
 
@@ -95,6 +96,7 @@ func Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, item)
 }
 
+// TODO: Handle query date
 func Get(c echo.Context) error {
 	ctx := ServerContext(c)
 
@@ -103,29 +105,35 @@ func Get(c echo.Context) error {
 		return AddGruffError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
-	if !gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
-		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Loader interface"))
-	}
+	if gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
+		item := reflect.New(ctx.Type).Interface()
+		loader := item.(gruff.Loader)
 
-	item := reflect.New(ctx.Type).Interface().(gruff.Loader)
+		if gruff.IsIdentifier(ctx.Type) {
+			ident, err := gruff.GetIdentifier(loader)
+			if err != nil {
+				return AddGruffError(ctx, c, err)
+			}
+			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
+			ident.ID = id
+		}
 
-	if gruff.IsIdentifier(ctx.Type) {
-		ident, err := gruff.GetIdentifier(item)
+		err := loader.LoadFull(ctx)
 		if err != nil {
 			return AddGruffError(ctx, c, err)
 		}
-		// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
-		ident.ID = id
+		return c.JSON(http.StatusOK, loader)
+	} else {
+		result, err := gruff.GetArangoObject(ctx, ctx.Type, id)
+		if err != nil {
+			return AddGruffError(ctx, c, err)
+		}
+		return c.JSON(http.StatusOK, result)
 	}
 
-	err := item.LoadFull(ctx)
-	if err != nil {
-		return AddGruffError(ctx, c, err)
-	}
-
-	return c.JSON(http.StatusOK, item)
 }
 
+// TODO: GetQueryDateFromRequest
 func GetListParametersFromRequest(c echo.Context) gruff.ArangoQueryParameters {
 	params := gruff.ArangoQueryParameters{}
 

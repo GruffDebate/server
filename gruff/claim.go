@@ -344,7 +344,23 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 		}
 	}
 
-	// TODO: Contexts
+	// Contexts
+	contextEdges, err := oldVersion.ContextEdges(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range contextEdges {
+		newEdge := ContextEdge{Edge: Edge{
+			From: edge.From,
+			To:   c.ArangoID(),
+		}}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
 	// TODO: Links
 
 	return nil
@@ -423,7 +439,19 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 		}
 	}
 
-	// TODO: Contexts
+	// Contexts
+	contextEdges, err := c.ContextEdges(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range contextEdges {
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
 	// TODO: References
 
 	c.PrepareForDelete(ctx)
@@ -587,7 +615,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
 	}
 
-	hasPremise, err := premise.HasPremise(ctx, c.ArangoID())
+	hasPremise, err := premise.HasPremise(ctx, c.ArangoKey())
 	if err != nil {
 		ctx.Rollback()
 		return err
@@ -597,7 +625,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
 	}
 
-	hasPremise, err = c.HasPremise(ctx, premise.ArangoID())
+	hasPremise, err = c.HasPremise(ctx, premise.ArangoKey())
 	if err != nil {
 		ctx.Rollback()
 		return err
@@ -717,13 +745,16 @@ func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
 	return nil
 }
 
-func (c Claim) HasPremise(ctx *ServerContext, premiseArangoId string) (bool, GruffError) {
+func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, GruffError) {
 	db := ctx.Arango.DB
+
+	premise := Claim{}
+	premise.Key = premiseArangoKey
 
 	qctx := arango.WithQueryCount(ctx.Context)
 	bindVars := map[string]interface{}{
 		"rootc":   c.ArangoID(),
-		"targetc": premiseArangoId,
+		"targetc": premise.ArangoID(),
 	}
 	query := `FOR v IN 1..5 OUTBOUND @rootc premises
                               FILTER v._id == @targetc
@@ -1009,12 +1040,12 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
 	return nil
 }
 
-func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoId string) GruffError {
+func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) GruffError {
 	if err := c.ValidateForUpdate(map[string]interface{}{}); err != nil {
 		return err
 	}
 
-	edge, err := FindContextEdge(ctx, contextArangoId, c.ArangoID())
+	edge, err := FindContextEdge(ctx, contextArangoKey, c.ArangoKey())
 	if err != nil {
 		ctx.Rollback()
 		return err

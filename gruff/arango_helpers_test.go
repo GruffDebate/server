@@ -100,3 +100,31 @@ func TestListArangoObjects(t *testing.T) {
 	assert.Equal(t, c3.ArangoID(), objs[3].(*Claim).ArangoID())
 	assert.Equal(t, c2.ArangoID(), objs[4].(*Claim).ArangoID())
 }
+
+func TestGetArangoObject(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	c1 := Claim{Title: "Let's create a new claim for GetArangoObject"}
+	err := c1.Create(CTX)
+	assert.NoError(t, err)
+
+	context := Context{ShortName: "GetArangoObject Context", Title: "Required Title", URL: "https://en.wikipedia.org/wiki/Context"}
+	err = context.Create(CTX)
+	assert.NoError(t, err)
+
+	obj, err := GetArangoObject(CTX, reflect.TypeOf(c1), c1.ArangoKey())
+	assert.NoError(t, err)
+	claim := obj.(*Claim)
+	assert.Equal(t, c1.ArangoID(), claim.ArangoID())
+
+	obj, err = GetArangoObject(CTX, reflect.TypeOf(context), context.ArangoKey())
+	assert.NoError(t, err)
+	context1 := obj.(*Context)
+	assert.Equal(t, context.ArangoID(), context1.ArangoID())
+
+	obj, err = GetArangoObject(CTX, reflect.TypeOf(context), "blah blah blah")
+	assert.Error(t, err)
+	assert.Nil(t, obj)
+	assert.Equal(t, "document not found", err.Error())
+}

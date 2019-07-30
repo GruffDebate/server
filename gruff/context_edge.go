@@ -66,13 +66,18 @@ func (c *ContextEdge) Delete(ctx *ServerContext) GruffError {
 
 // Business methods
 
-func FindContextEdge(ctx *ServerContext, contextArangoId, claimArangoId string) (ContextEdge, GruffError) {
+func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string) (ContextEdge, GruffError) {
 	db := ctx.Arango.DB
+
+	context := Context{}
+	context.Key = contextArangoKey
+	claim := Claim{}
+	claim.Key = claimArangoKey
 
 	edge := ContextEdge{}
 	bindVars := map[string]interface{}{
-		"claim":   claimArangoId,
-		"context": contextArangoId,
+		"claim":   claim.ArangoID(),
+		"context": context.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s
                                       FILTER obj._to == @claim
