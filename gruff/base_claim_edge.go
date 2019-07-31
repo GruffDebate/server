@@ -28,7 +28,7 @@ func (bc BaseClaimEdge) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
+func (bc *BaseClaimEdge) Create(ctx *ServerContext) Error {
 	col, err := ctx.Arango.CollectionFor(bc)
 	if err != nil {
 		return err
@@ -43,11 +43,11 @@ func (bc *BaseClaimEdge) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	return NewServerError("This item cannot be modified")
 }
 
-func (bc *BaseClaimEdge) Delete(ctx *ServerContext) GruffError {
+func (bc *BaseClaimEdge) Delete(ctx *ServerContext) Error {
 	bc.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": bc.DeletedAt,

@@ -17,11 +17,11 @@ type Edge struct {
 	To          string     `json:"_to,omitempty"`
 }
 
-func (e Edge) ValidateForCreate() GruffError {
+func (e Edge) ValidateForCreate() Error {
 	return ValidateStruct(e)
 }
 
-func (e Edge) ValidateField(f string) GruffError {
+func (e Edge) ValidateField(f string) Error {
 	return ValidateStructField(e, f)
 }
 

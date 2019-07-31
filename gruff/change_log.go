@@ -54,14 +54,14 @@ type ChangeLog struct {
 	NewArgType *int      `json:"newArgType,omitempty"`
 }
 
-func (cl ChangeLog) ValidateForCreate() GruffError {
+func (cl ChangeLog) ValidateForCreate() Error {
 	return ValidateStruct(cl)
 }
 
-func (cl ChangeLog) ValidateForUpdate() GruffError {
+func (cl ChangeLog) ValidateForUpdate() Error {
 	return cl.ValidateForCreate()
 }
 
-func (cl ChangeLog) ValidateField(f string) GruffError {
+func (cl ChangeLog) ValidateField(f string) Error {
 	return ValidateStructField(cl, f)
 }

@@ -8,10 +8,10 @@ import (
 )
 
 type Validator interface {
-	ValidateForCreate() GruffError
-	ValidateForUpdate(map[string]interface{}) GruffError
-	ValidateForDelete() GruffError
-	ValidateField(string) GruffError
+	ValidateForCreate() Error
+	ValidateForUpdate(map[string]interface{}) Error
+	ValidateForDelete() Error
+	ValidateField(string) Error
 }
 
 func IsValidator(t reflect.Type) bool {
@@ -19,7 +19,7 @@ func IsValidator(t reflect.Type) bool {
 	return t.Implements(modelType)
 }
 
-func ValidateStruct(item interface{}) GruffError {
+func ValidateStruct(item interface{}) Error {
 	_, err := govalidator.ValidateStruct(item)
 	if err != nil {
 		return NewBusinessError(err.Error())
@@ -27,7 +27,7 @@ func ValidateStruct(item interface{}) GruffError {
 	return nil
 }
 
-func ValidateStructField(item interface{}, f string) GruffError {
+func ValidateStructField(item interface{}, f string) Error {
 	_, err := govalidator.ValidateStruct(item)
 	errStr := govalidator.ErrorByField(err, f)
 
@@ -38,7 +38,7 @@ func ValidateStructField(item interface{}, f string) GruffError {
 	return nil
 }
 
-func ValidateStructFields(item interface{}, fs []string) GruffError {
+func ValidateStructFields(item interface{}, fs []string) Error {
 	_, err := govalidator.ValidateStruct(item)
 	if err == nil {
 		return nil
@@ -59,7 +59,7 @@ func ValidateStructFields(item interface{}, fs []string) GruffError {
 	return NewBusinessError(result)
 }
 
-func ValidateRequiredFields(item interface{}, fields []string) GruffError {
+func ValidateRequiredFields(item interface{}, fields []string) Error {
 	itemVal := reflect.ValueOf(item)
 	errStr := ""
 

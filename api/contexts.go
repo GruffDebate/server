@@ -19,13 +19,13 @@ func ListContext(c echo.Context) error {
 	db = DefaultPaging(ctx, c, db)
 
 	if err := db.Find(&contexts).Error; err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	for i := range contexts {
 		s, err := goscraper.Scrape(contexts[i].URL, 1)
 		if err != nil {
-			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+			return AddError(ctx, c, gruff.NewServerError(err.Error()))
 		}
 
 		contexts[i].MetaDataURL = &gruff.MetaData{

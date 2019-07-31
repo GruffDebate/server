@@ -87,7 +87,7 @@ func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (a *Argument) Create(ctx *ServerContext) GruffError {
+func (a *Argument) Create(ctx *ServerContext) Error {
 	// TODO: Test
 	can, err := a.UserCanCreate(ctx)
 	if err != nil {
@@ -174,7 +174,7 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	if err := a.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) Gr
 	return a.Load(ctx)
 }
 
-func (a *Argument) version(ctx *ServerContext) GruffError {
+func (a *Argument) version(ctx *ServerContext) Error {
 	oldVersion := *a
 
 	// This should delete all the old edges, too
@@ -273,7 +273,7 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (a *Argument) Delete(ctx *ServerContext) GruffError {
+func (a *Argument) Delete(ctx *ServerContext) Error {
 	// TODO: test
 	if err := a.ValidateForDelete(); err != nil {
 		return err
@@ -343,19 +343,19 @@ func (a *Argument) Delete(ctx *ServerContext) GruffError {
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
-func (a Argument) UserCanView(ctx *ServerContext) (bool, GruffError) {
+func (a Argument) UserCanView(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
 
-func (a Argument) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+func (a Argument) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
 	return a.UserCanDelete(ctx)
 }
 
-func (a Argument) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+func (a Argument) UserCanDelete(ctx *ServerContext) (bool, Error) {
 	u := ctx.UserContext
 	if u.Curator {
 		return true, nil
@@ -365,7 +365,7 @@ func (a Argument) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
 
 // Validator
 
-func (a Argument) ValidateForCreate() GruffError {
+func (a Argument) ValidateForCreate() Error {
 	if err := a.ValidateField("title"); err != nil {
 		return err
 	}
@@ -378,7 +378,7 @@ func (a Argument) ValidateForCreate() GruffError {
 	return nil
 }
 
-func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
+func (a Argument) ValidateForUpdate(updates map[string]interface{}) Error {
 	if a.DeletedAt != nil {
 		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
 	}
@@ -388,19 +388,19 @@ func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	return a.ValidateForCreate()
 }
 
-func (a Argument) ValidateForDelete() GruffError {
+func (a Argument) ValidateForDelete() Error {
 	if a.DeletedAt != nil {
 		return NewBusinessError("This argument has already been deleted or versioned.")
 	}
 	return nil
 }
 
-func (a Argument) ValidateField(f string) GruffError {
+func (a Argument) ValidateField(f string) Error {
 	err := ValidateStructField(a, f)
 	return err
 }
 
-func (a Argument) ValidateIDs() GruffError {
+func (a Argument) ValidateIDs() Error {
 	if a.ClaimID == "" {
 		return NewBusinessError("claimId: non zero value required;")
 	}
@@ -415,7 +415,7 @@ func (a Argument) ValidateIDs() GruffError {
 
 // Loader
 
-func (a *Argument) Load(ctx *ServerContext) GruffError {
+func (a *Argument) Load(ctx *ServerContext) Error {
 	db := ctx.Arango.DB
 
 	col, err := ctx.Arango.CollectionFor(a)
@@ -459,7 +459,7 @@ func (a *Argument) Load(ctx *ServerContext) GruffError {
 }
 
 // TODO
-func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
+func (a *Argument) LoadFull(ctx *ServerContext) Error {
 	if err := a.Load(ctx); err != nil {
 		return err
 	}
@@ -504,7 +504,7 @@ func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
 
 // Business methods
 
-func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
+func (a Argument) AddArgument(ctx *ServerContext, arg Argument) Error {
 	// TODO: test
 	updates := map[string]interface{}{}
 	if err := a.ValidateForUpdate(updates); err != nil {
@@ -532,7 +532,7 @@ func (a Argument) AddArgument(ctx *ServerContext, arg Argument) GruffError {
 	return nil
 }
 
-func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
+func (a Argument) Arguments(ctx *ServerContext) ([]Argument, Error) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
@@ -568,7 +568,7 @@ func (a Argument) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 }
 
 // TODO: Make generic by moving method to inference.go
-func (a Argument) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
+func (a Argument) Inferences(ctx *ServerContext) ([]Inference, Error) {
 	db := ctx.Arango.DB
 	edges := []Inference{}
 
@@ -598,7 +598,7 @@ func (a Argument) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
 	return edges, nil
 }
 
-func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
+func (a Argument) Inference(ctx *ServerContext) (Inference, Error) {
 	db := ctx.Arango.DB
 	edge := Inference{}
 
@@ -621,7 +621,7 @@ func (a Argument) Inference(ctx *ServerContext) (Inference, GruffError) {
 	return edge, nil
 }
 
-func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, GruffError) {
+func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, Error) {
 	db := ctx.Arango.DB
 	edge := BaseClaimEdge{}
 
@@ -719,7 +719,7 @@ func (a Argument) UpdateAncestorRUs(ctx *ServerContext) {
 	}
 }
 
-func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t, objType int) GruffError {
+func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t, objType int) Error {
 	db := ctx.Database
 
 	oldArg := Argument{TargetClaimID: a.TargetClaimID, TargetArgumentID: a.TargetArgumentID, Type: a.Type}

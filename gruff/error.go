@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-type GruffError interface {
+type Error interface {
 	Code() int
 	Subcode() int
 	Error() string
@@ -67,7 +67,7 @@ func (err CoreError) IsWarning() bool {
 	return err.ErrCode == ERROR_CODE_WARNING
 }
 
-func NewGruffError(code, subcode int, location, msg string, data map[string]interface{}) GruffError {
+func NewError(code, subcode int, location, msg string, data map[string]interface{}) Error {
 	if subcode == 0 {
 		if code == ERROR_CODE_BUSINESS_ERROR {
 			subcode = ERROR_SUBCODE_UNDEFINED
@@ -84,27 +84,27 @@ func NewGruffError(code, subcode int, location, msg string, data map[string]inte
 	}
 }
 
-func NewWarning(msg string, opts ...interface{}) GruffError {
+func NewWarning(msg string, opts ...interface{}) Error {
 	return newElipsisError(ERROR_CODE_WARNING, msg, opts...)
 }
 
-func NewUnauthorizedError(msg string, opts ...interface{}) GruffError {
+func NewUnauthorizedError(msg string, opts ...interface{}) Error {
 	return newElipsisError(ERROR_CODE_UNAUTHORIZED_ERROR, msg, opts...)
 }
 
-func NewBusinessError(msg string, opts ...interface{}) GruffError {
+func NewBusinessError(msg string, opts ...interface{}) Error {
 	return newElipsisError(ERROR_CODE_BUSINESS_ERROR, msg, opts...)
 }
 
-func NewPermissionError(msg string, opts ...interface{}) GruffError {
+func NewPermissionError(msg string, opts ...interface{}) Error {
 	return newElipsisError(ERROR_CODE_PERMISSION_ERROR, msg, opts...)
 }
 
-func NewNotFoundError(msg string, opts ...interface{}) GruffError {
+func NewNotFoundError(msg string, opts ...interface{}) Error {
 	return newElipsisError(ERROR_CODE_NOT_FOUND, msg, opts...)
 }
 
-func NewServerError(msg string, opts ...interface{}) GruffError {
+func NewServerError(msg string, opts ...interface{}) Error {
 	if strings.Contains(msg, "uix_users_email") {
 		msg = "Email is already in use"
 		opts = []interface{}{ERROR_SUBCODE_EMAIL_TAKEN}
@@ -113,7 +113,7 @@ func NewServerError(msg string, opts ...interface{}) GruffError {
 	return newElipsisError(ERROR_CODE_SERVER_ERROR, msg, opts...)
 }
 
-func newElipsisError(code int, msg string, opts ...interface{}) GruffError {
+func newElipsisError(code int, msg string, opts ...interface{}) Error {
 	subcode := 0
 	data := map[string]interface{}{}
 
@@ -127,7 +127,7 @@ func newElipsisError(code int, msg string, opts ...interface{}) GruffError {
 		}
 	}
 
-	return NewGruffError(code, subcode, ParentCallerInfo(), msg, data)
+	return NewError(code, subcode, ParentCallerInfo(), msg, data)
 }
 
 func ParentCallerInfo() string {

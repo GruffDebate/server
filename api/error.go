@@ -32,7 +32,7 @@ func AddServerError(c echo.Context, payload map[string]interface{}, code int, me
 	return c.JSON(http.StatusInternalServerError, map[string]interface{}{"code": code, "message": message})
 }
 
-func AddGruffError(ctx *gruff.ServerContext, c echo.Context, errGruff gruff.GruffError) error {
+func AddError(ctx *gruff.ServerContext, c echo.Context, errGruff gruff.Error) error {
 	var err error
 
 	code := errGruff.Code()

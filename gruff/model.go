@@ -96,7 +96,7 @@ func JsonToModel(jsonStr string, item interface{}) error {
 	return err
 }
 
-func GetFieldByJsonTag(item interface{}, jsonKey string) (field *reflect.StructField, gerr GruffError) {
+func GetFieldByJsonTag(item interface{}, jsonKey string) (field *reflect.StructField, gerr Error) {
 	data := map[string]interface{}{
 		"type": reflect.TypeOf(item),
 		"key":  jsonKey,
@@ -125,7 +125,7 @@ func GetFieldByJsonTag(item interface{}, jsonKey string) (field *reflect.StructF
 	return nil, NewNotFoundError("field not found", data)
 }
 
-func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffError {
+func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) Error {
 	data := map[string]interface{}{
 		"type": reflect.TypeOf(item),
 		"key":  jsonKey,
@@ -169,7 +169,7 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) GruffErr
 	return NewNotFoundError("field not found", data)
 }
 
-func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) GruffError {
+func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) Error {
 	for key, value := range values {
 		if err := SetByJsonTag(item, key, value); err != nil {
 			return err
@@ -178,7 +178,7 @@ func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) Gruf
 	return nil
 }
 
-func SetKey(item interface{}, key string) GruffError {
+func SetKey(item interface{}, key string) Error {
 	v := reflect.ValueOf(item)
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {

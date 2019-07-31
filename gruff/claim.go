@@ -72,7 +72,7 @@ func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (c *Claim) Create(ctx *ServerContext) GruffError {
+func (c *Claim) Create(ctx *ServerContext) Error {
 	if err := c.ValidateForCreate(); err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Gruff
 	return c.Load(ctx)
 }
 
-func (c *Claim) version(ctx *ServerContext) GruffError {
+func (c *Claim) version(ctx *ServerContext) Error {
 	oldVersion := *c
 
 	// This should delete all the old edges, too
@@ -252,7 +252,7 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (c *Claim) Delete(ctx *ServerContext) GruffError {
+func (c *Claim) Delete(ctx *ServerContext) Error {
 	// TODO: test
 	if err := c.ValidateForDelete(); err != nil {
 		return err
@@ -366,19 +366,19 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
-func (c Claim) UserCanView(ctx *ServerContext) (bool, GruffError) {
+func (c Claim) UserCanView(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
 
-func (c Claim) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+func (c Claim) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
 	return c.UserCanDelete(ctx)
 }
 
-func (c Claim) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+func (c Claim) UserCanDelete(ctx *ServerContext) (bool, Error) {
 	u := ctx.UserContext
 	if u.Curator {
 		return true, nil
@@ -388,7 +388,7 @@ func (c Claim) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
 
 // Validator
 
-func (c Claim) ValidateForCreate() GruffError {
+func (c Claim) ValidateForCreate() Error {
 	if len(c.Title) < 3 || len(c.Title) > 1000 {
 		return NewBusinessError("Title: must be between 3 and 1000 characters;")
 	}
@@ -398,7 +398,7 @@ func (c Claim) ValidateForCreate() GruffError {
 	return ValidateStruct(c)
 }
 
-func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
+func (c Claim) ValidateForUpdate(updates map[string]interface{}) Error {
 	if c.DeletedAt != nil {
 		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
 	}
@@ -408,14 +408,14 @@ func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	return c.ValidateForCreate()
 }
 
-func (c Claim) ValidateForDelete() GruffError {
+func (c Claim) ValidateForDelete() Error {
 	if c.DeletedAt != nil {
 		return NewBusinessError("This claim has already been deleted or versioned.")
 	}
 	return nil
 }
 
-func (c Claim) ValidateField(f string) GruffError {
+func (c Claim) ValidateField(f string) Error {
 	return ValidateStructField(c, f)
 }
 
@@ -425,7 +425,7 @@ func (c Claim) ValidateField(f string) GruffError {
 // Otherwise, Load will look for Claims matching the ID
 // If QueryAt is a non-nil value, it will load the Claim active at that time (if any)
 // Otherwise, it will return the current active (undeleted) version.
-func (c *Claim) Load(ctx *ServerContext) GruffError {
+func (c *Claim) Load(ctx *ServerContext) Error {
 	db := ctx.Arango.DB
 
 	col, err := ctx.Arango.CollectionFor(c)
@@ -468,7 +468,7 @@ func (c *Claim) Load(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
+func (c *Claim) LoadFull(ctx *ServerContext) Error {
 	if err := c.Load(ctx); err != nil {
 		return err
 	}
@@ -523,7 +523,7 @@ func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
 
 // Arguments
 
-func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
+func (c Claim) AddArgument(ctx *ServerContext, a Argument) Error {
 	updates := map[string]interface{}{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
@@ -562,7 +562,7 @@ func (c Claim) AddArgument(ctx *ServerContext, a Argument) GruffError {
 	return nil
 }
 
-func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
+func (c Claim) Arguments(ctx *ServerContext) ([]Argument, Error) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
@@ -597,7 +597,7 @@ func (c Claim) Arguments(ctx *ServerContext) ([]Argument, GruffError) {
 	return args, nil
 }
 
-func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffError) {
+func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, Error) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
@@ -632,7 +632,7 @@ func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, GruffE
 }
 
 // TODO: this could most definitely be made more generic...
-func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
+func (c Claim) Inferences(ctx *ServerContext) ([]Inference, Error) {
 	db := ctx.Arango.DB
 	edges := []Inference{}
 
@@ -664,7 +664,7 @@ func (c Claim) Inferences(ctx *ServerContext) ([]Inference, GruffError) {
 
 // Premises
 
-func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
+func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	if premise == nil {
 		ctx.Rollback()
 		return NewServerError("Premise is nil")
@@ -757,7 +757,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) GruffError {
 	return nil
 }
 
-func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
+func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) Error {
 	updates := map[string]interface{}{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
@@ -827,7 +827,7 @@ func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) GruffError {
 	return nil
 }
 
-func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, GruffError) {
+func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, Error) {
 	db := ctx.Arango.DB
 
 	premise := Claim{}
@@ -852,7 +852,7 @@ func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, Gr
 	return n > 0, nil
 }
 
-func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
+func (c Claim) Premises(ctx *ServerContext) ([]Claim, Error) {
 	db := ctx.Arango.DB
 	premises := []Claim{}
 
@@ -889,7 +889,7 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, GruffError) {
 	return premises, nil
 }
 
-func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Claim, GruffError) {
+func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Claim, Error) {
 	premises := []Claim{}
 
 	// TODO: test
@@ -970,7 +970,7 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 	return premises, nil
 }
 
-func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
+func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
@@ -1001,7 +1001,7 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, GruffError) {
 	return edges, nil
 }
 
-func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
+func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, Error) {
 	db := ctx.Arango.DB
 
 	var n int64
@@ -1029,7 +1029,7 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, GruffError) {
 }
 
 // TODO: Make generic
-func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, GruffError) {
+func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
@@ -1062,7 +1062,7 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, GruffError
 // Arguments that use this Claim
 
 // TODO: this could most definitely be made more generic...
-func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) {
+func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []BaseClaimEdge{}
 
@@ -1093,7 +1093,7 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, GruffError) 
 }
 
 // Contexts
-func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
+func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 	c.QueryAt = nil
 	updates := map[string]interface{}{}
 	if err := c.ValidateForUpdate(updates); err != nil {
@@ -1142,7 +1142,7 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) GruffError {
 	return nil
 }
 
-func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) GruffError {
+func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) Error {
 	updates := map[string]interface{}{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
@@ -1171,7 +1171,7 @@ func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) Gruff
 	return nil
 }
 
-func (c Claim) Contexts(ctx *ServerContext) ([]Context, GruffError) {
+func (c Claim) Contexts(ctx *ServerContext) ([]Context, Error) {
 	db := ctx.Arango.DB
 	contexts := []Context{}
 
@@ -1232,7 +1232,7 @@ func (c Claim) Contexts(ctx *ServerContext) ([]Context, GruffError) {
 	return contexts, nil
 }
 
-func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, GruffError) {
+func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []ContextEdge{}
 
@@ -1330,7 +1330,7 @@ func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
 // Graph methods
 
 // TODO: THis could use the named graph debate_map
-func (c Claim) HasCycle(ctx *ServerContext) (bool, GruffError) {
+func (c Claim) HasCycle(ctx *ServerContext) (bool, Error) {
 	db := ctx.Arango.DB
 
 	qctx := arango.WithQueryCount(ctx.Context)

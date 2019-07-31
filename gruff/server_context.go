@@ -37,6 +37,6 @@ func (ctx *ServerContext) RequestTime() time.Time {
 	return *ctx.RequestAt
 }
 
-func (ctx ServerContext) Rollback() GruffError {
+func (ctx ServerContext) Rollback() Error {
 	return ctx.Arango.Rollback()
 }

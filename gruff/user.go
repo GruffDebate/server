@@ -40,7 +40,7 @@ func (u User) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (u *User) Create(ctx *ServerContext) GruffError {
+func (u *User) Create(ctx *ServerContext) Error {
 	col, err := ctx.Arango.CollectionFor(u)
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (u *User) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	if err := u.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffE
 }
 
 // TODO: Test
-func (u *User) Delete(ctx *ServerContext) GruffError {
+func (u *User) Delete(ctx *ServerContext) Error {
 	// TODO: test
 	if err := u.ValidateForDelete(); err != nil {
 		return err
@@ -135,7 +135,7 @@ func (u *User) Delete(ctx *ServerContext) GruffError {
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
-func (u User) UserCanView(ctx *ServerContext) (bool, GruffError) {
+func (u User) UserCanView(ctx *ServerContext) (bool, Error) {
 	user := ctx.UserContext
 	if user.Curator {
 		return true, nil
@@ -143,22 +143,22 @@ func (u User) UserCanView(ctx *ServerContext) (bool, GruffError) {
 	return u.ArangoKey() == user.ArangoKey(), nil
 }
 
-func (u User) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+func (u User) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
 
-func (u User) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+func (u User) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
 	return u.UserCanView(ctx)
 }
 
-func (u User) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+func (u User) UserCanDelete(ctx *ServerContext) (bool, Error) {
 	user := ctx.UserContext
 	return user.Curator, nil
 }
 
 // Validator
 
-func (u User) ValidateForCreate() GruffError {
+func (u User) ValidateForCreate() Error {
 	err := u.ValidateField("Name")
 	if err != nil {
 		return err
@@ -178,7 +178,7 @@ func (u User) ValidateForCreate() GruffError {
 	return nil
 }
 
-func (u User) ValidateForUpdate(updates map[string]interface{}) GruffError {
+func (u User) ValidateForUpdate(updates map[string]interface{}) Error {
 	updated := User{
 		Name:     updates["name"].(string),
 		Email:    updates["email"].(string),
@@ -202,11 +202,11 @@ func (u User) ValidateForUpdate(updates map[string]interface{}) GruffError {
 	return nil
 }
 
-func (u User) ValidateForDelete() GruffError {
+func (u User) ValidateForDelete() Error {
 	return nil
 }
 
-func (u User) ValidateField(f string) GruffError {
+func (u User) ValidateField(f string) Error {
 	data := map[string]interface{}{"field": f}
 
 	err := ValidateStructField(u, f)
@@ -235,7 +235,7 @@ func (u User) ValidateField(f string) GruffError {
 
 // Loader
 
-func (u *User) Load(ctx *ServerContext) GruffError {
+func (u *User) Load(ctx *ServerContext) Error {
 	db := ctx.Arango.DB
 
 	col, err := ctx.Arango.CollectionFor(u)
@@ -279,7 +279,7 @@ func (u *User) Load(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (u *User) LoadFull(ctx *ServerContext) GruffError {
+func (u *User) LoadFull(ctx *ServerContext) Error {
 	if err := u.Load(ctx); err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func (u *User) LoadFull(ctx *ServerContext) GruffError {
 
 // Business methods
 
-func (u *User) VerifyPassword(ctx *ServerContext, password string) (bool, GruffError) {
+func (u *User) VerifyPassword(ctx *ServerContext, password string) (bool, Error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.HashedPassword), []byte(password))
 	if err != nil {
 		return false, NewBusinessError(err.Error())
@@ -296,7 +296,7 @@ func (u *User) VerifyPassword(ctx *ServerContext, password string) (bool, GruffE
 	return true, nil
 }
 
-func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) GruffError {
+func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) Error {
 	col, err := ctx.Arango.CollectionFor(u)
 	if err != nil {
 		return err

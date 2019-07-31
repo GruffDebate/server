@@ -16,9 +16,9 @@ type ArangoObject interface {
 	ArangoKey() string
 	ArangoID() string
 	DefaultQueryParameters() ArangoQueryParameters
-	Create(*ServerContext) GruffError
-	Update(*ServerContext, map[string]interface{}) GruffError
-	Delete(*ServerContext) GruffError
+	Create(*ServerContext) Error
+	Update(*ServerContext, map[string]interface{}) Error
+	Delete(*ServerContext) Error
 }
 
 // TODO: Test
@@ -33,11 +33,11 @@ type ArangoContext struct {
 	Collections map[string]arango.Collection
 }
 
-func (ctx ArangoContext) Rollback() GruffError {
+func (ctx ArangoContext) Rollback() Error {
 	return NewServerError("Not implemented yet")
 }
 
-func (ctx ArangoContext) Collection(name string) (arango.Collection, GruffError) {
+func (ctx ArangoContext) Collection(name string) (arango.Collection, Error) {
 	if ctx.Collections == nil {
 		ctx.Collections = make(map[string]arango.Collection)
 	}
@@ -54,7 +54,7 @@ func (ctx ArangoContext) Collection(name string) (arango.Collection, GruffError)
 	return col, nil
 }
 
-func (ctx ArangoContext) CollectionFor(item ArangoObject) (arango.Collection, GruffError) {
+func (ctx ArangoContext) CollectionFor(item ArangoObject) (arango.Collection, Error) {
 	return ctx.Collection(item.CollectionName())
 }
 
@@ -164,7 +164,7 @@ func DefaultListQueryForUser(obj ArangoObject, params ArangoQueryParameters) str
 	return params.Apply(query)
 }
 
-func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars map[string]interface{}) ([]interface{}, GruffError) {
+func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars map[string]interface{}) ([]interface{}, Error) {
 	db := ctx.Arango.DB
 
 	objs := []interface{}{}
@@ -186,7 +186,7 @@ func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVar
 	return objs, nil
 }
 
-func GetArangoObject(ctx *ServerContext, t reflect.Type, arangoKey string) (interface{}, GruffError) {
+func GetArangoObject(ctx *ServerContext, t reflect.Type, arangoKey string) (interface{}, Error) {
 	obj := reflect.New(t).Interface().(ArangoObject)
 
 	col, err := ctx.Arango.CollectionFor(obj)

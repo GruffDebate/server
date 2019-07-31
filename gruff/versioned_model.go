@@ -68,7 +68,7 @@ func IsVersionedModel(t reflect.Type) bool {
 	return is
 }
 
-func GetVersionedModel(item interface{}) (VersionedModel, GruffError) {
+func GetVersionedModel(item interface{}) (VersionedModel, Error) {
 	if !IsVersionedModel(reflect.TypeOf(item)) {
 		return VersionedModel{}, NewServerError("Item is not a VersionedModel")
 	}

@@ -13,21 +13,21 @@ type Link struct {
 	Claim       *Claim    `json:"claim,omitempty"`
 }
 
-func (l Link) ValidateForCreate() GruffError {
+func (l Link) ValidateForCreate() Error {
 	return ValidateStruct(l)
 }
 
-func (l Link) ValidateForUpdate(updates map[string]interface{}) GruffError {
+func (l Link) ValidateForUpdate(updates map[string]interface{}) Error {
 	if err := SetJsonValuesOnStruct(&l, updates); err != nil {
 		return err
 	}
 	return l.ValidateForCreate()
 }
 
-func (l Link) ValidateForDelete() GruffError {
+func (l Link) ValidateForDelete() Error {
 	return nil
 }
 
-func (l Link) ValidateField(f string) GruffError {
+func (l Link) ValidateField(f string) Error {
 	return ValidateStructField(l, f)
 }

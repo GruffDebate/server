@@ -13,14 +13,14 @@ type ClaimOpinion struct {
 	Truth   float64   `json:"truth"`
 }
 
-func (co ClaimOpinion) ValidateForCreate() GruffError {
+func (co ClaimOpinion) ValidateForCreate() Error {
 	return ValidateStruct(co)
 }
 
-func (co ClaimOpinion) ValidateForUpdate() GruffError {
+func (co ClaimOpinion) ValidateForUpdate() Error {
 	return co.ValidateForCreate()
 }
 
-func (co ClaimOpinion) ValidateField(f string) GruffError {
+func (co ClaimOpinion) ValidateField(f string) Error {
 	return ValidateStructField(co, f)
 }

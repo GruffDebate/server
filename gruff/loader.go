@@ -5,8 +5,8 @@ import (
 )
 
 type Loader interface {
-	Load(*ServerContext) GruffError
-	LoadFull(*ServerContext) GruffError
+	Load(*ServerContext) Error
+	LoadFull(*ServerContext) Error
 }
 
 func IsLoader(t reflect.Type) bool {

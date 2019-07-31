@@ -6,10 +6,10 @@ import (
 
 // UserCanUpdate should be called with the list of values that will be updated,
 type Restrictor interface {
-	UserCanView(ctx *ServerContext) (bool, GruffError)
-	UserCanCreate(ctx *ServerContext) (bool, GruffError)
-	UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError)
-	UserCanDelete(ctx *ServerContext) (bool, GruffError)
+	UserCanView(ctx *ServerContext) (bool, Error)
+	UserCanCreate(ctx *ServerContext) (bool, Error)
+	UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error)
+	UserCanDelete(ctx *ServerContext) (bool, Error)
 }
 
 func IsRestrictor(t reflect.Type) bool {

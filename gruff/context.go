@@ -74,7 +74,7 @@ func (c Context) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 // TODO: Test validations, etc.
-func (c *Context) Create(ctx *ServerContext) GruffError {
+func (c *Context) Create(ctx *ServerContext) Error {
 	if err := c.ValidateForCreate(); err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (c *Context) Create(ctx *ServerContext) GruffError {
 
 // TODO: Test
 // TODO: generic...
-func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) Gru
 }
 
 // TODO: Test
-func (c *Context) Delete(ctx *ServerContext) GruffError {
+func (c *Context) Delete(ctx *ServerContext) Error {
 	// TODO: test
 	if err := c.ValidateForDelete(); err != nil {
 		return err
@@ -173,48 +173,48 @@ func (c *Context) Delete(ctx *ServerContext) GruffError {
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
-func (c Context) UserCanView(ctx *ServerContext) (bool, GruffError) {
+func (c Context) UserCanView(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
 
-func (c Context) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+func (c Context) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (c Context) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+func (c Context) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
 	return c.UserCanDelete(ctx)
 }
 
-func (c Context) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+func (c Context) UserCanDelete(ctx *ServerContext) (bool, Error) {
 	u := ctx.UserContext
 	return u.Curator, nil
 }
 
 // Validator
 
-func (c Context) ValidateForCreate() GruffError {
+func (c Context) ValidateForCreate() Error {
 	return ValidateStruct(c)
 }
 
-func (c Context) ValidateForUpdate(updates map[string]interface{}) GruffError {
+func (c Context) ValidateForUpdate(updates map[string]interface{}) Error {
 	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
 		return err
 	}
 	return c.ValidateForCreate()
 }
 
-func (c Context) ValidateForDelete() GruffError {
+func (c Context) ValidateForDelete() Error {
 	return nil
 }
 
-func (c Context) ValidateField(f string) GruffError {
+func (c Context) ValidateField(f string) Error {
 	return ValidateStructField(c, f)
 }
 
 // Business methods
 
 // TODO: TEst
-func (c Context) NumberOfClaims(ctx *ServerContext) (int64, GruffError) {
+func (c Context) NumberOfClaims(ctx *ServerContext) (int64, Error) {
 	db := ctx.Arango.DB
 
 	qctx := arango.WithQueryCount(ctx.Context)
@@ -237,7 +237,7 @@ func (c Context) NumberOfClaims(ctx *ServerContext) (int64, GruffError) {
 	return n, nil
 }
 
-func FindContext(ctx *ServerContext, contextArangoId string) (Context, GruffError) {
+func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
 	db := ctx.Arango.DB
 
 	context := Context{}

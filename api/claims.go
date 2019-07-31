@@ -14,12 +14,12 @@ func GetClaim(c echo.Context) error {
 	id := c.Param("id")
 
 	// TODO: as of date
-	var err gruff.GruffError
+	var err gruff.Error
 	claim := gruff.Claim{}
 	claim.ID = id
 	err = claim.Load(ctx)
 	if err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, claim)
@@ -41,19 +41,19 @@ func ListClaims(which string) func(c echo.Context) error {
 		case "new":
 			query = gruff.DefaultListQuery(&claim, claim.DefaultQueryParameters())
 		default:
-			return AddGruffError(ctx, c, gruff.NewNotFoundError("Not found"))
+			return AddError(ctx, c, gruff.NewNotFoundError("Not found"))
 		}
 
 		cursor, err := db.Query(ctx.Context, query, bindVars)
 		if err != nil {
-			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+			return AddError(ctx, c, gruff.NewServerError(err.Error()))
 		}
 		defer cursor.Close()
 		for cursor.HasMore() {
 			claim := gruff.Claim{}
 			_, err := cursor.ReadDocument(ctx.Context, &claim)
 			if err != nil {
-				return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+				return AddError(ctx, c, gruff.NewServerError(err.Error()))
 			}
 			claims = append(claims, claim)
 		}
@@ -71,16 +71,16 @@ func AddContext(c echo.Context) error {
 	claim := gruff.Claim{}
 	claim.Key = parentId
 	if err := claim.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	context, err := gruff.GetArangoObject(ctx, reflect.TypeOf(gruff.Context{}), id)
 	if err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	if err := claim.AddContext(ctx, *context.(*gruff.Context)); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, claim)
@@ -95,11 +95,11 @@ func RemoveContext(c echo.Context) error {
 	claim := gruff.Claim{}
 	claim.Key = parentId
 	if err := claim.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	if err := claim.RemoveContext(ctx, id); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, claim)
@@ -112,12 +112,12 @@ func SetScore(c echo.Context) error {
 
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewNotFoundError(err.Error()))
+		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
 	}
 
 	user := ctx.UserContext
 	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewUnauthorizedError(err.Error()))
+		return AddError(ctx, c, gruff.NewUnauthorizedError(err.Error()))
 	}
 
 	paths := strings.Split(c.Path(), "/")
@@ -136,17 +136,17 @@ func SetScore(c echo.Context) error {
 		target = &gruff.Argument{}
 		item = &gruff.ArgumentOpinion{UserID: user.ID, ArgumentID: id}
 	default:
-		return AddGruffError(ctx, c, gruff.NewNotFoundError(err.Error()))
+		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
 	}
 
 	err = db.Where("id = ?", id).First(target).Error
 	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	data := map[string]interface{}{}
 	if err := c.Bind(&data); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 	var score float64
 	if val, ok := data["score"]; ok {
@@ -166,14 +166,14 @@ func SetScore(c echo.Context) error {
 		db = ctx.Database
 		err = db.Create(item).Error
 		if err != nil {
-			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+			return AddError(ctx, c, gruff.NewServerError(err.Error()))
 		}
 	} else {
 		setScore(item, scoreType, score)
 		db = ctx.Database
 		err = db.Save(item).Error
 		if err != nil {
-			return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+			return AddError(ctx, c, gruff.NewServerError(err.Error()))
 		}
 		status = http.StatusAccepted
 	}

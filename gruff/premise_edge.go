@@ -29,7 +29,7 @@ func (p PremiseEdge) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
+func (p *PremiseEdge) Create(ctx *ServerContext) Error {
 	col, err := ctx.Arango.CollectionFor(p)
 	if err != nil {
 		return err
@@ -44,11 +44,11 @@ func (p *PremiseEdge) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (p *PremiseEdge) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (p *PremiseEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	return NewServerError("This item cannot be modified")
 }
 
-func (p *PremiseEdge) Delete(ctx *ServerContext) GruffError {
+func (p *PremiseEdge) Delete(ctx *ServerContext) Error {
 	p.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": p.DeletedAt,
@@ -66,7 +66,7 @@ func (p *PremiseEdge) Delete(ctx *ServerContext) GruffError {
 }
 
 // TODO: Preserve history...
-func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) GruffError {
+func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) Error {
 	col, err := ctx.Arango.CollectionFor(p)
 	if err != nil {
 		return err

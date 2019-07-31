@@ -26,19 +26,19 @@ type Notification struct {
 	Viewed   bool        `json:"viewed" sql:"not null"`
 }
 
-func (n Notification) ValidateForCreate() GruffError {
+func (n Notification) ValidateForCreate() Error {
 	return ValidateStruct(n)
 }
 
-func (n Notification) ValidateForUpdate() GruffError {
+func (n Notification) ValidateForUpdate() Error {
 	return n.ValidateForCreate()
 }
 
-func (n Notification) ValidateField(f string) GruffError {
+func (n Notification) ValidateField(f string) Error {
 	return ValidateStructField(n, f)
 }
 
-func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId string, oldTargetId string, oldTargetType int) GruffError {
+func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId string, oldTargetId string, oldTargetType int) Error {
 	/*
 		n := Notification{
 			UserID:   userId,
@@ -57,7 +57,7 @@ func NotifyArgumentMoved(ctx *ServerContext, userId uint64, argId string, oldTar
 	return nil
 }
 
-func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId string, oldTargetId string, oldTargetType int) GruffError {
+func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId string, oldTargetId string, oldTargetType int) Error {
 	/*
 		n := Notification{
 			UserID:   userId,
@@ -76,7 +76,7 @@ func NotifyParentArgumentMoved(ctx *ServerContext, userId uint64, parentArgId st
 	return nil
 }
 
-func NotifyNewArgument(ctx ServerContext, userId uint64, item interface{}, newArg Argument) GruffError {
+func NotifyNewArgument(ctx ServerContext, userId uint64, item interface{}, newArg Argument) Error {
 	n := Notification{
 		UserID:  userId,
 		Type:    NOTIFICATION_TYPE_NEW_ARGUMENT,

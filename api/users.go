@@ -16,16 +16,16 @@ func SignUp(c echo.Context) error {
 
 	if err := c.Bind(&u); err != nil {
 		fmt.Println(err)
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	if err := u.Create(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	t, err := TokenForUser(u)
 	if err != nil {
-		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+		return AddError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
 	user := map[string]interface{}{"user": u, "token": t}
 
@@ -37,7 +37,7 @@ func SignIn(c echo.Context) error {
 
 	u := gruff.User{}
 	if err := c.Bind(&u); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	user := gruff.User{
@@ -45,13 +45,13 @@ func SignIn(c echo.Context) error {
 	}
 
 	if err := user.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+		return AddError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 	}
 
 	if ok, _ := verifyPassword(user, u.Password); ok {
 		t, err := TokenForUser(user)
 		if err != nil {
-			return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+			return AddError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 		}
 
 		u := map[string]interface{}{"user": user, "token": t}
@@ -59,7 +59,7 @@ func SignIn(c echo.Context) error {
 		return c.JSON(http.StatusOK, u)
 	}
 
-	return AddGruffError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
+	return AddError(ctx, c, gruff.NewUnauthorizedError("Unauthorized"))
 }
 
 func TokenForUser(user gruff.User) (string, error) {
@@ -83,18 +83,18 @@ func ChangePassword(c echo.Context) error {
 
 	cp := new(customPassword)
 	if err := c.Bind(&cp); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	user := gruff.User{}
 	user.Key = ctx.UserContext.Key
 	if err := user.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	user.Password = cp.NewPassword
 	if err := user.ChangePassword(ctx, cp.OldPassword); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -106,7 +106,7 @@ func GetMe(c echo.Context) error {
 	user := gruff.User{}
 	user.Key = ctx.UserContext.Key
 	if err := user.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -118,16 +118,16 @@ func UpdateMe(c echo.Context) error {
 	user := gruff.User{}
 	user.Key = ctx.UserContext.Key
 	if err := user.Load(ctx); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	updates := map[string]interface{}{}
 	if err := c.Bind(&updates); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	if err := user.Update(ctx, updates); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, user)

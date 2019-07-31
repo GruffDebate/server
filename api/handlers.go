@@ -31,7 +31,7 @@ func List(c echo.Context) error {
 
 	items, err := gruff.ListArangoObjects(ctx, ctx.Type, query, filters)
 	if err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	ctx.Payload["results"] = items
@@ -42,12 +42,12 @@ func Create(c echo.Context) error {
 	ctx := ServerContext(c)
 
 	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
-		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Creator interface"))
+		return AddError(ctx, c, gruff.NewServerError("This item doesn't implement the Creator interface"))
 	}
 
 	item := reflect.New(ctx.Type).Interface()
 	if err := c.Bind(item); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	userID := ActiveUserID(c, ctx)
@@ -57,7 +57,7 @@ func Create(c echo.Context) error {
 
 	err := item.(gruff.ArangoObject).Create(ctx)
 	if err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusCreated, item)
@@ -67,18 +67,18 @@ func Update(c echo.Context) error {
 	ctx := ServerContext(c)
 
 	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
-		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Updater interface"))
+		return AddError(ctx, c, gruff.NewServerError("This item doesn't implement the Updater interface"))
 	}
 
 	updates := map[string]interface{}{}
 	if err := c.Bind(&updates); err != nil {
-		return AddGruffError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
 	var key string
 	var ok bool
 	if key, ok = updates["_key"].(string); !ok {
-		return AddGruffError(ctx, c, gruff.NewBusinessError("Key: non zero value required;"))
+		return AddError(ctx, c, gruff.NewBusinessError("Key: non zero value required;"))
 	}
 
 	item := reflect.New(ctx.Type).Interface()
@@ -86,12 +86,12 @@ func Update(c echo.Context) error {
 	// TODO check if end is null
 
 	if err := gruff.SetKey(item, key); err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	err := item.(gruff.ArangoObject).Update(ctx, updates)
 	if err != nil {
-		return AddGruffError(ctx, c, err)
+		return AddError(ctx, c, err)
 	}
 
 	return c.JSON(http.StatusOK, item)
@@ -103,7 +103,7 @@ func Get(c echo.Context) error {
 
 	id := c.Param("id")
 	if id == "" {
-		return AddGruffError(ctx, c, gruff.NewNotFoundError("Not Found"))
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
 	var result interface{}
@@ -114,7 +114,7 @@ func Get(c echo.Context) error {
 		if gruff.IsVersionedModel(ctx.Type) {
 			vm, err := gruff.GetVersionedModel(loader)
 			if err != nil {
-				return AddGruffError(ctx, c, err)
+				return AddError(ctx, c, err)
 			}
 			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
 			vm.ID = id
@@ -122,13 +122,13 @@ func Get(c echo.Context) error {
 
 		err := loader.LoadFull(ctx)
 		if err != nil {
-			return AddGruffError(ctx, c, err)
+			return AddError(ctx, c, err)
 		}
 		result = loader
 	} else {
 		item, err := gruff.GetArangoObject(ctx, ctx.Type, id)
 		if err != nil {
-			return AddGruffError(ctx, c, err)
+			return AddError(ctx, c, err)
 		}
 		result = item
 	}
@@ -137,10 +137,10 @@ func Get(c echo.Context) error {
 		r := result.(gruff.Restrictor)
 		canView, err := r.UserCanView(ctx)
 		if err != nil {
-			return AddGruffError(ctx, c, err)
+			return AddError(ctx, c, err)
 		}
 		if !canView {
-			return AddGruffError(ctx, c, gruff.NewPermissionError("You do not have permission to view this item"))
+			return AddError(ctx, c, gruff.NewPermissionError("You do not have permission to view this item"))
 		}
 
 	}

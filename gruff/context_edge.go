@@ -28,7 +28,7 @@ func (c ContextEdge) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-func (c *ContextEdge) Create(ctx *ServerContext) GruffError {
+func (c *ContextEdge) Create(ctx *ServerContext) Error {
 	col, err := ctx.Arango.CollectionFor(c)
 	if err != nil {
 		return err
@@ -43,11 +43,11 @@ func (c *ContextEdge) Create(ctx *ServerContext) GruffError {
 	return nil
 }
 
-func (c *ContextEdge) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+func (c *ContextEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
 	return NewServerError("This item cannot be modified")
 }
 
-func (c *ContextEdge) Delete(ctx *ServerContext) GruffError {
+func (c *ContextEdge) Delete(ctx *ServerContext) Error {
 	c.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
 		"end": c.DeletedAt,
@@ -66,7 +66,7 @@ func (c *ContextEdge) Delete(ctx *ServerContext) GruffError {
 
 // Business methods
 
-func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string) (ContextEdge, GruffError) {
+func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string) (ContextEdge, Error) {
 	db := ctx.Arango.DB
 
 	context := Context{}
