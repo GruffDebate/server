@@ -30,18 +30,7 @@ func (p PremiseEdge) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (p *PremiseEdge) Create(ctx *ServerContext) Error {
-	col, err := ctx.Arango.CollectionFor(p)
-	if err != nil {
-		return err
-	}
-
-	p.PrepareForCreate(ctx)
-
-	_, aerr := col.CreateDocument(ctx.Context, p)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-	return nil
+	return CreateArangoObject(ctx, p)
 }
 
 func (p *PremiseEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {

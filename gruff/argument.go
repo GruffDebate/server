@@ -88,20 +88,6 @@ func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (a *Argument) Create(ctx *ServerContext) Error {
-	// TODO: Test
-	can, err := a.UserCanCreate(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You must be logged in to create this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(a)
-	if err != nil {
-		return err
-	}
-
 	var baseClaim Claim
 	if a.ClaimID == "" {
 		// Need to create a Base Claim for this Argument with the same title and description
@@ -119,22 +105,15 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 		a.ClaimID = baseClaim.ID
 	} else {
 		baseClaim.ID = a.ClaimID
-		if err = baseClaim.Load(ctx); err != nil {
+		if err := baseClaim.Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
 	}
 
-	// TODO: Test
-	if err := a.ValidateForCreate(); err != nil {
-		return err
-	}
-
-	a.PrepareForCreate(ctx)
-
-	if _, dberr := col.CreateDocument(ctx.Context, a); dberr != nil {
+	if err := CreateArangoObject(ctx, a); err != nil {
 		ctx.Rollback()
-		return NewServerError(dberr.Error())
+		return err
 	}
 
 	edge := BaseClaimEdge{Edge: Edge{
@@ -150,22 +129,22 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 	if a.TargetClaimID != nil {
 		targetClaim := Claim{}
 		targetClaim.ID = *a.TargetClaimID
-		if err = (&targetClaim).Load(ctx); err != nil {
+		if err := (&targetClaim).Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
-		if err = targetClaim.AddArgument(ctx, *a); err != nil {
+		if err := targetClaim.AddArgument(ctx, *a); err != nil {
 			ctx.Rollback()
 			return err
 		}
 	} else {
 		targetArg := Argument{}
 		targetArg.ID = *a.TargetArgumentID
-		if err = targetArg.Load(ctx); err != nil {
+		if err := targetArg.Load(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
-		if err = targetArg.AddArgument(ctx, *a); err != nil {
+		if err := targetArg.AddArgument(ctx, *a); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -175,34 +154,7 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 }
 
 func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) Error {
-	if err := a.ValidateForUpdate(updates); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := a.UserCanUpdate(ctx, updates)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to modify this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(a)
-	if err != nil {
-		return err
-	}
-
-	// When an Argument is updated, it creates a new version
-	if err := a.version(ctx); err != nil {
-		return err
-	}
-
-	if _, err := col.UpdateDocument(ctx.Context, a.ArangoKey(), updates); err != nil {
-		return NewServerError(err.Error())
-	}
-
-	return a.Load(ctx)
+	return UpdateArangoObject(ctx, a, updates)
 }
 
 func (a *Argument) version(ctx *ServerContext) Error {

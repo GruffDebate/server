@@ -156,6 +156,39 @@ func (aqp ArangoQueryParameters) Apply(query string) string {
 
 // Default CRUD Operations
 
+func CreateArangoObject(ctx *ServerContext, obj ArangoObject) Error {
+	if IsValidator(reflect.TypeOf(obj)) {
+		v := obj.(Validator)
+		if err := v.ValidateForCreate(); err != nil {
+			return err
+		}
+	}
+
+	if IsRestrictor(reflect.TypeOf(obj)) {
+		r := obj.(Restrictor)
+		can, err := r.UserCanCreate(ctx)
+		if err != nil {
+			return err
+		}
+		if !can {
+			return NewPermissionError("You do not have permission to create this item")
+		}
+	}
+
+	col, err := ctx.Arango.CollectionFor(obj)
+	if err != nil {
+		return err
+	}
+
+	obj.PrepareForCreate(ctx)
+
+	_, aerr := col.CreateDocument(ctx.Context, obj)
+	if aerr != nil {
+		return NewServerError(aerr.Error())
+	}
+	return nil
+}
+
 func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates map[string]interface{}) Error {
 	if IsValidator(reflect.TypeOf(obj)) {
 		v := obj.(Validator)
@@ -181,10 +214,19 @@ func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates map[string
 
 	}
 
+	// When a Versioner is updated, it creates a new version
+	if IsVersioner(reflect.TypeOf(obj)) {
+		v := obj.(Versioner)
+		if err := v.version(ctx); err != nil {
+			return err
+		}
+	}
+
 	if _, err := col.UpdateDocument(ctx.Context, obj.ArangoKey(), updates); err != nil {
 		return NewServerError(err.Error())
 	}
 
+	// TODO: If Loader, Load?
 	return nil
 }
 

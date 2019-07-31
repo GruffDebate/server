@@ -76,3 +76,12 @@ func GetVersionedModel(item interface{}) (VersionedModel, Error) {
 	id := reflect.ValueOf(item).FieldByName("VersionedModel").Interface().(VersionedModel)
 	return id, nil
 }
+
+type Versioner interface {
+	version(*ServerContext) Error
+}
+
+func IsVersioner(t reflect.Type) bool {
+	modelType := reflect.TypeOf((*Versioner)(nil)).Elem()
+	return t.Implements(modelType)
+}

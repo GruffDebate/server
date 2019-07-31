@@ -42,7 +42,7 @@ func Create(c echo.Context) error {
 	ctx := ServerContext(c)
 
 	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
-		return AddError(ctx, c, gruff.NewServerError("This item doesn't implement the Creator interface"))
+		return AddError(ctx, c, gruff.NewServerError("This item isn't compatible with this request"))
 	}
 
 	item := reflect.New(ctx.Type).Interface()
@@ -67,7 +67,7 @@ func Update(c echo.Context) error {
 	ctx := ServerContext(c)
 
 	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
-		return AddError(ctx, c, gruff.NewServerError("This item doesn't implement the Updater interface"))
+		return AddError(ctx, c, gruff.NewServerError("This item isn't compatible with this request"))
 	}
 
 	updates := map[string]interface{}{}
@@ -90,6 +90,32 @@ func Update(c echo.Context) error {
 	}
 
 	err := item.(gruff.ArangoObject).Update(ctx, updates)
+	if err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, item)
+}
+
+func Delete(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
+		return AddError(ctx, c, gruff.NewServerError("This item isn't compatible with this request"))
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	}
+
+	item := reflect.New(ctx.Type).Interface()
+
+	if err := gruff.SetKey(item, id); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	err := item.(gruff.ArangoObject).Delete(ctx)
 	if err != nil {
 		return AddError(ctx, c, err)
 	}

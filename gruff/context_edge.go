@@ -29,18 +29,7 @@ func (c ContextEdge) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (c *ContextEdge) Create(ctx *ServerContext) Error {
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	c.PrepareForCreate(ctx)
-
-	_, aerr := col.CreateDocument(ctx.Context, c)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-	return nil
+	return CreateArangoObject(ctx, c)
 }
 
 func (c *ContextEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {

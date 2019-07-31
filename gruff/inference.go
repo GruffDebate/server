@@ -29,18 +29,7 @@ func (i Inference) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (i *Inference) Create(ctx *ServerContext) Error {
-	col, err := ctx.Arango.CollectionFor(i)
-	if err != nil {
-		return err
-	}
-
-	i.PrepareForCreate(ctx)
-
-	_, aerr := col.CreateDocument(ctx.Context, i)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-	return nil
+	return CreateArangoObject(ctx, i)
 }
 
 func (i *Inference) Update(ctx *ServerContext, updates map[string]interface{}) Error {

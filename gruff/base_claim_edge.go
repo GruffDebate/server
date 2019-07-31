@@ -29,18 +29,7 @@ func (bc BaseClaimEdge) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (bc *BaseClaimEdge) Create(ctx *ServerContext) Error {
-	col, err := ctx.Arango.CollectionFor(bc)
-	if err != nil {
-		return err
-	}
-
-	bc.PrepareForCreate(ctx)
-
-	_, aerr := col.CreateDocument(ctx.Context, bc)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-	return nil
+	return CreateArangoObject(ctx, bc)
 }
 
 func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {

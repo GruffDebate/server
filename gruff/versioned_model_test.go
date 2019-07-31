@@ -30,3 +30,13 @@ func TestGetVersionedModel(t *testing.T) {
 	assert.Equal(t, "id", id.ID)
 	assert.Equal(t, "key", id.Key)
 }
+
+func TestIsVersioner(t *testing.T) {
+	assert.False(t, IsVersioner(reflect.TypeOf(&User{})))
+	assert.False(t, IsVersioner(reflect.TypeOf(&Context{})))
+	assert.False(t, IsVersioner(reflect.TypeOf(&ClaimOpinion{})))
+	assert.False(t, IsVersioner(reflect.TypeOf(&ArgumentOpinion{})))
+	assert.True(t, IsVersioner(reflect.TypeOf(&Claim{})))
+	assert.True(t, IsVersioner(reflect.TypeOf(&Argument{})))
+	assert.False(t, IsVersioner(reflect.TypeOf(&Link{})))
+}

@@ -46,7 +46,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	private.PUT("/users/:id", Update)
 	private.PUT("/users/password", ChangePassword)
 	public.PUT("/users/changePassword", ChangePassword)
-	//private.DELETE("/users/:id", Delete)
+	private.DELETE("/users/:id", Delete)
 
 	private.GET("/users/claims", List)
 
@@ -54,7 +54,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.GET("/arguments/:id", GetArgument)
 	private.POST("/arguments", CreateArgument)
 	private.PUT("/arguments/:id", Update)
-	//private.DELETE("/arguments/:id", Delete)
+	private.DELETE("/arguments/:id", Delete)
 	//private.PUT("/arguments/:id/move/:newId/type/:type", MoveArgument)
 
 	//private.POST("/arguments/:id/strength", SetScore)
@@ -64,8 +64,8 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.GET("/contexts", List)
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
-	private.PUT("/contexts/:id", Update) // TODO: not updater
-	//private.DELETE("/contexts/:id", Delete) // TODO: not deleter
+	private.PUT("/contexts/:id", Update)
+	private.DELETE("/contexts/:id", Delete)
 
 	// TODO: Should contexts be added using the short name instead of the id?
 	private.POST("/claims/:parentId/contexts/:id", AddContext)
@@ -82,7 +82,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.GET("/claims/:id", GetClaim)
 	private.POST("/claims", Create)
 	private.PUT("/claims/:id", Update)
-	//private.DELETE("/claims/:id", Delete)
+	private.DELETE("/claims/:id", Delete)
 	//private.POST("/claims/:id/truth", SetScore)
 	//private.PUT("/claims/:id/truth", SetScore)
 
@@ -90,7 +90,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.GET("/links/:id", Get)
 	private.POST("/links", Create)
 	private.PUT("/links/:id", Update)
-	//private.DELETE("/links/:id", Delete)
+	private.DELETE("/links/:id", Delete)
 
 	//public.GET("/tags/:id/claims", ListClaimsByTag)
 

@@ -73,19 +73,6 @@ func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (c *Claim) Create(ctx *ServerContext) Error {
-	if err := c.ValidateForCreate(); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := c.UserCanCreate(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You must be logged in to create this item")
-	}
-
 	// Only allow one claim with the same ID that isn't deleted
 	if c.ID != "" {
 		oldClaim := Claim{}
@@ -96,48 +83,11 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 		}
 	}
 
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	c.PrepareForCreate(ctx)
-
-	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-	return nil
+	return CreateArangoObject(ctx, c)
 }
 
 func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Error {
-	if err := c.ValidateForUpdate(updates); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := c.UserCanUpdate(ctx, updates)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to modify this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	// When a Claim is updated, it creates a new version
-	if err := c.version(ctx); err != nil {
-		return err
-	}
-
-	if _, err := col.UpdateDocument(ctx.Context, c.ArangoKey(), updates); err != nil {
-		return NewServerError(err.Error())
-	}
-
-	return c.Load(ctx)
+	return UpdateArangoObject(ctx, c, updates)
 }
 
 func (c *Claim) version(ctx *ServerContext) Error {

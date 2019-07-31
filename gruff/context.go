@@ -75,34 +75,10 @@ func (c Context) DefaultQueryParameters() ArangoQueryParameters {
 
 // TODO: Test validations, etc.
 func (c *Context) Create(ctx *ServerContext) Error {
-	if err := c.ValidateForCreate(); err != nil {
-		return err
-	}
-
 	// TODO: Unique indexes? Unique checks?
 
 	// TODO: Test
-	can, err := c.UserCanCreate(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You must be logged in to create this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	c.PrepareForCreate(ctx)
-
-	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
-		ctx.Rollback()
-		return NewServerError(dberr.Error())
-	}
-
-	return nil
+	return CreateArangoObject(ctx, c)
 }
 
 // TODO: Test
