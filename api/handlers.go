@@ -41,7 +41,7 @@ func List(c echo.Context) error {
 func Create(c echo.Context) error {
 	ctx := ServerContext(c)
 
-	if !gruff.IsCreator(reflect.PtrTo(ctx.Type)) {
+	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
 		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Creator interface"))
 	}
 
@@ -55,7 +55,7 @@ func Create(c echo.Context) error {
 		gruff.SetUserID(item, userID)
 	}
 
-	err := item.(gruff.Creator).Create(ctx)
+	err := item.(gruff.ArangoObject).Create(ctx)
 	if err != nil {
 		return AddGruffError(ctx, c, err)
 	}
@@ -66,7 +66,7 @@ func Create(c echo.Context) error {
 func Update(c echo.Context) error {
 	ctx := ServerContext(c)
 
-	if !gruff.IsUpdater(reflect.PtrTo(ctx.Type)) {
+	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
 		return AddGruffError(ctx, c, gruff.NewServerError("This item doesn't implement the Updater interface"))
 	}
 
@@ -89,7 +89,7 @@ func Update(c echo.Context) error {
 		return AddGruffError(ctx, c, err)
 	}
 
-	err := item.(gruff.Updater).Update(ctx, updates)
+	err := item.(gruff.ArangoObject).Update(ctx, updates)
 	if err != nil {
 		return AddGruffError(ctx, c, err)
 	}
@@ -111,13 +111,13 @@ func Get(c echo.Context) error {
 		item := reflect.New(ctx.Type).Interface()
 		loader := item.(gruff.Loader)
 
-		if gruff.IsIdentifier(ctx.Type) {
-			ident, err := gruff.GetIdentifier(loader)
+		if gruff.IsVersionedModel(ctx.Type) {
+			vm, err := gruff.GetVersionedModel(loader)
 			if err != nil {
 				return AddGruffError(ctx, c, err)
 			}
 			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
-			ident.ID = id
+			vm.ID = id
 		}
 
 		err := loader.LoadFull(ctx)

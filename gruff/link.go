@@ -5,7 +5,7 @@ import (
 )
 
 type Link struct {
-	Identifier
+	VersionedModel
 	Title       string    `json:"title" sql:"not null" valid:"length(3|1000)"`
 	Description string    `json:"desc" valid:"length(3|4000)"`
 	Url         string    `json:"url" valid:"length(3|4000)"`
@@ -22,6 +22,10 @@ func (l Link) ValidateForUpdate(updates map[string]interface{}) GruffError {
 		return err
 	}
 	return l.ValidateForCreate()
+}
+
+func (l Link) ValidateForDelete() GruffError {
+	return nil
 }
 
 func (l Link) ValidateField(f string) GruffError {

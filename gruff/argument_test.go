@@ -368,7 +368,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
-	col, _ := CTX.Arango.CollectionFor(arg)
+	col, _ := CTX.Arango.CollectionFor(&arg)
 	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
 
 	firstKey := arg.ArangoKey()

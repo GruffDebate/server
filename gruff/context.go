@@ -73,6 +73,103 @@ func (c Context) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS.Merge(params)
 }
 
+// TODO: Test validations, etc.
+func (c *Context) Create(ctx *ServerContext) GruffError {
+	if err := c.ValidateForCreate(); err != nil {
+		return err
+	}
+
+	// TODO: Unique indexes? Unique checks?
+
+	// TODO: Test
+	can, err := c.UserCanCreate(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You must be logged in to create this item")
+	}
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+
+	c.PrepareForCreate(ctx)
+
+	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
+		ctx.Rollback()
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
+// TODO: Test
+// TODO: generic...
+func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	if err := c.ValidateForUpdate(updates); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, c.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return nil
+}
+
+// TODO: Test
+func (c *Context) Delete(ctx *ServerContext) GruffError {
+	// TODO: test
+	if err := c.ValidateForDelete(); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := c.UserCanDelete(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to delete this item")
+	}
+
+	n, err := c.NumberOfClaims(ctx)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return NewBusinessError("A context cannot be deleted if it's used by any claims")
+	}
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.RemoveDocument(ctx.Context, c.ArangoKey())
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
@@ -112,77 +209,6 @@ func (c Context) ValidateForDelete() GruffError {
 
 func (c Context) ValidateField(f string) GruffError {
 	return ValidateStructField(c, f)
-}
-
-// Creator
-// TODO: Test validations, etc.
-func (c *Context) Create(ctx *ServerContext) GruffError {
-	if err := c.ValidateForCreate(); err != nil {
-		return err
-	}
-
-	// TODO: Unique indexes? Unique checks?
-
-	// TODO: Test
-	can, err := c.UserCanCreate(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You must be logged in to create this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	c.PrepareForCreate(ctx)
-
-	if _, dberr := col.CreateDocument(ctx.Context, c); dberr != nil {
-		ctx.Rollback()
-		return NewServerError(dberr.Error())
-	}
-
-	return nil
-}
-
-// Deleter
-
-// TODO: Test
-func (c *Context) Delete(ctx *ServerContext) GruffError {
-	// TODO: test
-	if err := c.ValidateForDelete(); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := c.UserCanDelete(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to delete this item")
-	}
-
-	n, err := c.NumberOfClaims(ctx)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return NewBusinessError("A context cannot be deleted if it's used by any claims")
-	}
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.RemoveDocument(ctx.Context, c.ArangoKey())
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
-	return nil
 }
 
 // Business methods

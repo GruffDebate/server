@@ -28,8 +28,6 @@ func (i Inference) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
-// Creator
-
 func (i *Inference) Create(ctx *ServerContext) GruffError {
 	col, err := ctx.Arango.CollectionFor(i)
 	if err != nil {
@@ -43,6 +41,10 @@ func (i *Inference) Create(ctx *ServerContext) GruffError {
 		return NewServerError(aerr.Error())
 	}
 	return nil
+}
+
+func (i *Inference) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	return NewServerError("This item cannot be modified")
 }
 
 func (i *Inference) Delete(ctx *ServerContext) GruffError {

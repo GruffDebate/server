@@ -40,6 +40,98 @@ func (u User) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
 
+func (u *User) Create(ctx *ServerContext) GruffError {
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+
+	}
+
+	// TODO: Test
+	can, err := u.UserCanCreate(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to create this item")
+	}
+
+	u.PrepareForCreate(ctx)
+
+	if err := u.ValidateForCreate(); err != nil {
+		return err
+	}
+
+	password := u.Password
+	u.Password = ""
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	u.HashedPassword = string(hashedPassword[:])
+	if _, dberr := col.CreateDocument(ctx.Context, u); dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+	return nil
+}
+
+func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
+	if err := u.ValidateForUpdate(updates); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := u.UserCanUpdate(ctx, updates)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to modify this item")
+	}
+
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, u.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return u.Load(ctx)
+}
+
+// TODO: Test
+func (u *User) Delete(ctx *ServerContext) GruffError {
+	// TODO: test
+	if err := u.ValidateForDelete(); err != nil {
+		return err
+	}
+
+	// TODO: Test
+	can, err := u.UserCanDelete(ctx)
+	if err != nil {
+		return err
+	}
+	if !can {
+		return NewPermissionError("You do not have permission to delete this account")
+	}
+
+	u.PrepareForDelete(ctx)
+	patch := map[string]interface{}{
+		"end": u.DeletedAt,
+	}
+	col, err := ctx.Arango.CollectionFor(u)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.UpdateDocument(ctx.Context, u.ArangoKey(), patch)
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
 // Restrictor
 // TODO: Test
 // TODO: Call in CRUD and other methods
@@ -141,70 +233,6 @@ func (u User) ValidateField(f string) GruffError {
 	return err
 }
 
-// Creator
-
-func (u *User) Create(ctx *ServerContext) GruffError {
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-
-	}
-
-	// TODO: Test
-	can, err := u.UserCanCreate(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to create this item")
-	}
-
-	u.PrepareForCreate(ctx)
-
-	if err := u.ValidateForCreate(); err != nil {
-		return err
-	}
-
-	password := u.Password
-	u.Password = ""
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
-	u.HashedPassword = string(hashedPassword[:])
-	if _, dberr := col.CreateDocument(ctx.Context, u); dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-	return nil
-}
-
-// Updater
-
-func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
-	if err := u.ValidateForUpdate(updates); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := u.UserCanUpdate(ctx, updates)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to modify this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-
-	}
-
-	if _, err := col.UpdateDocument(ctx.Context, u.ArangoKey(), updates); err != nil {
-		return NewServerError(err.Error())
-	}
-
-	return u.Load(ctx)
-}
-
 // Loader
 
 func (u *User) Load(ctx *ServerContext) GruffError {
@@ -255,40 +283,6 @@ func (u *User) LoadFull(ctx *ServerContext) GruffError {
 	if err := u.Load(ctx); err != nil {
 		return err
 	}
-	return nil
-}
-
-// Deleter
-
-// TODO: Test
-func (u *User) Delete(ctx *ServerContext) GruffError {
-	// TODO: test
-	if err := u.ValidateForDelete(); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := u.UserCanDelete(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to delete this account")
-	}
-
-	u.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": u.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.UpdateDocument(ctx.Context, u.ArangoKey(), patch)
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
 	return nil
 }
 

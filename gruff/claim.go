@@ -35,7 +35,7 @@ const PREMISE_RULE_ANY int = 2
 const PREMISE_RULE_ANY_TWO int = 3
 
 type Claim struct {
-	Identifier
+	VersionedModel
 	Title         string     `json:"title" valid:"length(3|1000)"`
 	Negation      string     `json:"negation"`
 	Question      string     `json:"question"`
@@ -71,64 +71,6 @@ func (c Claim) ArangoID() string {
 func (c Claim) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
-
-// Restrictor
-// TODO: Test
-// TODO: Call in CRUD and other methods
-func (c Claim) UserCanView(ctx *ServerContext) (bool, GruffError) {
-	return true, nil
-}
-
-func (c Claim) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
-	return ctx.UserLoggedIn(), nil
-}
-
-func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
-	return c.UserCanDelete(ctx)
-}
-
-func (c Claim) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
-	u := ctx.UserContext
-	if u.Curator {
-		return true, nil
-	}
-	return c.CreatedByID == u.ArangoID(), nil
-}
-
-// Validator
-
-func (c Claim) ValidateForCreate() GruffError {
-	if len(c.Title) < 3 || len(c.Title) > 1000 {
-		return NewBusinessError("Title: must be between 3 and 1000 characters;")
-	}
-	if len(c.Description) > 0 && (len(c.Description) < 3 || len(c.Description) > 4000) {
-		return NewBusinessError("Description: must be blank, or between 3 and 4000 characters;")
-	}
-	return ValidateStruct(c)
-}
-
-func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
-	if c.DeletedAt != nil {
-		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
-	}
-	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
-		return err
-	}
-	return c.ValidateForCreate()
-}
-
-func (c Claim) ValidateForDelete() GruffError {
-	if c.DeletedAt != nil {
-		return NewBusinessError("This claim has already been deleted or versioned.")
-	}
-	return nil
-}
-
-func (c Claim) ValidateField(f string) GruffError {
-	return ValidateStructField(c, f)
-}
-
-// Creator
 
 func (c *Claim) Create(ctx *ServerContext) GruffError {
 	if err := c.ValidateForCreate(); err != nil {
@@ -166,110 +108,6 @@ func (c *Claim) Create(ctx *ServerContext) GruffError {
 	}
 	return nil
 }
-
-// Loader
-
-// If the Claim object has a key, that exact Claim will be loaded
-// Otherwise, Load will look for Claims matching the ID
-// If QueryAt is a non-nil value, it will load the Claim active at that time (if any)
-// Otherwise, it will return the current active (undeleted) version.
-func (c *Claim) Load(ctx *ServerContext) GruffError {
-	db := ctx.Arango.DB
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
-	if c.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), c)
-		if dberr != nil {
-			return NewServerError(dberr.Error())
-		}
-	} else if c.ID != "" {
-		bindVars := map[string]interface{}{
-			"id": c.ID,
-		}
-		query := fmt.Sprintf(`FOR obj IN %s 
-                                       FILTER obj.id == @id
-                                       %s
-                                       SORT obj.start DESC
-                                       LIMIT 1 
-                                       RETURN obj`,
-			c.CollectionName(),
-			c.DateFilter(bindVars))
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer cursor.Close()
-		if err != nil {
-			return NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, c)
-			if err != nil {
-				return NewServerError(err.Error())
-			}
-		}
-	} else {
-		return NewBusinessError("There is no key or id for this Claim.")
-	}
-
-	return nil
-}
-
-func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
-	if err := c.Load(ctx); err != nil {
-		return err
-	}
-
-	if c.MultiPremise {
-		premises, err := c.Premises(ctx)
-		if err != nil {
-			return err
-		}
-
-		fullPremises := make([]Claim, len(premises))
-		for i, premise := range premises {
-			premise.QueryAt = c.QueryDate()
-			if err := premise.LoadFull(ctx); err != nil {
-				return err
-			}
-			premise.QueryAt = nil
-			fullPremises[i] = premise
-		}
-
-		c.PremiseClaims = fullPremises
-	} else {
-		args, err := c.Arguments(ctx)
-		if err != nil {
-			return err
-		}
-
-		var proArgs, conArgs []Argument
-		for _, arg := range args {
-			bc := Claim{}
-			bc.ID = arg.ClaimID
-			bc.QueryAt = c.QueryDate()
-			if err := bc.Load(ctx); err != nil {
-				return err
-			}
-			bc.QueryAt = nil
-			arg.Claim = &bc
-
-			if arg.Pro {
-				proArgs = append(proArgs, arg)
-			} else {
-				conArgs = append(conArgs, arg)
-			}
-		}
-
-		c.ProArgs = proArgs
-		c.ConArgs = conArgs
-	}
-
-	return nil
-}
-
-// Updater
 
 func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
 	if err := c.ValidateForUpdate(updates); err != nil {
@@ -414,8 +252,6 @@ func (c *Claim) version(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// Deleter
-
 func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	// TODO: test
 	if err := c.ValidateForDelete(); err != nil {
@@ -509,7 +345,7 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 		}
 	}
 
-	// TODO: References
+	// TODO: Links
 
 	c.PrepareForDelete(ctx)
 	patch := map[string]interface{}{
@@ -522,6 +358,164 @@ func (c *Claim) Delete(ctx *ServerContext) GruffError {
 	_, dberr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
 	if dberr != nil {
 		return NewServerError(dberr.Error())
+	}
+
+	return nil
+}
+
+// Restrictor
+// TODO: Test
+// TODO: Call in CRUD and other methods
+func (c Claim) UserCanView(ctx *ServerContext) (bool, GruffError) {
+	return true, nil
+}
+
+func (c Claim) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+	return ctx.UserLoggedIn(), nil
+}
+
+func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+	return c.UserCanDelete(ctx)
+}
+
+func (c Claim) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+	u := ctx.UserContext
+	if u.Curator {
+		return true, nil
+	}
+	return c.CreatedByID == u.ArangoID(), nil
+}
+
+// Validator
+
+func (c Claim) ValidateForCreate() GruffError {
+	if len(c.Title) < 3 || len(c.Title) > 1000 {
+		return NewBusinessError("Title: must be between 3 and 1000 characters;")
+	}
+	if len(c.Description) > 0 && (len(c.Description) < 3 || len(c.Description) > 4000) {
+		return NewBusinessError("Description: must be blank, or between 3 and 4000 characters;")
+	}
+	return ValidateStruct(c)
+}
+
+func (c Claim) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if c.DeletedAt != nil {
+		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
+	}
+	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
+		return err
+	}
+	return c.ValidateForCreate()
+}
+
+func (c Claim) ValidateForDelete() GruffError {
+	if c.DeletedAt != nil {
+		return NewBusinessError("This claim has already been deleted or versioned.")
+	}
+	return nil
+}
+
+func (c Claim) ValidateField(f string) GruffError {
+	return ValidateStructField(c, f)
+}
+
+// Loader
+
+// If the Claim object has a key, that exact Claim will be loaded
+// Otherwise, Load will look for Claims matching the ID
+// If QueryAt is a non-nil value, it will load the Claim active at that time (if any)
+// Otherwise, it will return the current active (undeleted) version.
+func (c *Claim) Load(ctx *ServerContext) GruffError {
+	db := ctx.Arango.DB
+
+	col, err := ctx.Arango.CollectionFor(c)
+	if err != nil {
+		return err
+	}
+
+	if c.ArangoKey() != "" {
+		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), c)
+		if dberr != nil {
+			return NewServerError(dberr.Error())
+		}
+	} else if c.ID != "" {
+		bindVars := map[string]interface{}{
+			"id": c.ID,
+		}
+		query := fmt.Sprintf(`FOR obj IN %s 
+                                       FILTER obj.id == @id
+                                       %s
+                                       SORT obj.start DESC
+                                       LIMIT 1 
+                                       RETURN obj`,
+			c.CollectionName(),
+			c.DateFilter(bindVars))
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer cursor.Close()
+		if err != nil {
+			return NewServerError(err.Error())
+		}
+		for cursor.HasMore() {
+			_, err := cursor.ReadDocument(ctx.Context, c)
+			if err != nil {
+				return NewServerError(err.Error())
+			}
+		}
+	} else {
+		return NewBusinessError("There is no key or id for this Claim.")
+	}
+
+	return nil
+}
+
+func (c *Claim) LoadFull(ctx *ServerContext) GruffError {
+	if err := c.Load(ctx); err != nil {
+		return err
+	}
+
+	if c.MultiPremise {
+		premises, err := c.Premises(ctx)
+		if err != nil {
+			return err
+		}
+
+		fullPremises := make([]Claim, len(premises))
+		for i, premise := range premises {
+			premise.QueryAt = c.QueryDate()
+			if err := premise.LoadFull(ctx); err != nil {
+				return err
+			}
+			premise.QueryAt = nil
+			fullPremises[i] = premise
+		}
+
+		c.PremiseClaims = fullPremises
+	} else {
+		args, err := c.Arguments(ctx)
+		if err != nil {
+			return err
+		}
+
+		var proArgs, conArgs []Argument
+		for _, arg := range args {
+			bc := Claim{}
+			bc.ID = arg.ClaimID
+			bc.QueryAt = c.QueryDate()
+			if err := bc.Load(ctx); err != nil {
+				return err
+			}
+			bc.QueryAt = nil
+			arg.Claim = &bc
+
+			if arg.Pro {
+				proArgs = append(proArgs, arg)
+			} else {
+				conArgs = append(conArgs, arg)
+			}
+		}
+
+		c.ProArgs = proArgs
+		c.ConArgs = conArgs
 	}
 
 	return nil

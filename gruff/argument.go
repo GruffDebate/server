@@ -50,7 +50,7 @@ import (
 */
 
 type Argument struct {
-	Identifier
+	VersionedModel
 	TargetClaimID    *string    `json:"targetClaimId,omitempty"`
 	TargetClaim      *Claim     `json:"targetClaim,omitempty"`
 	TargetArgumentID *string    `json:"targetArgId,omitempty"`
@@ -86,81 +86,6 @@ func (a Argument) ArangoID() string {
 func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS
 }
-
-// Restrictor
-// TODO: Test
-// TODO: Call in CRUD and other methods
-func (a Argument) UserCanView(ctx *ServerContext) (bool, GruffError) {
-	return true, nil
-}
-
-func (a Argument) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
-	return ctx.UserLoggedIn(), nil
-}
-
-func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
-	return a.UserCanDelete(ctx)
-}
-
-func (a Argument) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
-	u := ctx.UserContext
-	if u.Curator {
-		return true, nil
-	}
-	return a.CreatedByID == u.ArangoID(), nil
-}
-
-// Validator
-
-func (a Argument) ValidateForCreate() GruffError {
-	if err := a.ValidateField("title"); err != nil {
-		return err
-	}
-	if err := a.ValidateField("desc"); err != nil {
-		return err
-	}
-	if err := a.ValidateIDs(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
-	if a.DeletedAt != nil {
-		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
-	}
-	if err := SetJsonValuesOnStruct(&a, updates); err != nil {
-		return err
-	}
-	return a.ValidateForCreate()
-}
-
-func (a Argument) ValidateForDelete() GruffError {
-	if a.DeletedAt != nil {
-		return NewBusinessError("This argument has already been deleted or versioned.")
-	}
-	return nil
-}
-
-func (a Argument) ValidateField(f string) GruffError {
-	err := ValidateStructField(a, f)
-	return err
-}
-
-func (a Argument) ValidateIDs() GruffError {
-	if a.ClaimID == "" {
-		return NewBusinessError("claimId: non zero value required;")
-	}
-	if a.TargetClaimID == nil && a.TargetArgumentID == nil {
-		return NewBusinessError("An Argument must have a target Claim or target Argument ID")
-	}
-	if a.TargetClaimID != nil && a.TargetArgumentID != nil {
-		return NewBusinessError("An Argument can have only one target Claim or target Argument ID")
-	}
-	return nil
-}
-
-// Creator
 
 func (a *Argument) Create(ctx *ServerContext) GruffError {
 	// TODO: Test
@@ -248,97 +173,6 @@ func (a *Argument) Create(ctx *ServerContext) GruffError {
 
 	return nil
 }
-
-// Loader
-
-func (a *Argument) Load(ctx *ServerContext) GruffError {
-	db := ctx.Arango.DB
-
-	col, err := ctx.Arango.CollectionFor(a)
-	if err != nil {
-		return err
-	}
-
-	if a.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), a)
-		if dberr != nil {
-			return NewServerError(dberr.Error())
-		}
-	} else if a.ID != "" {
-		var empty time.Time
-		var query string
-		bindVars := map[string]interface{}{
-			"id": a.ID,
-		}
-		if a.CreatedAt == empty {
-			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
-		} else {
-			bindVars["start"] = a.CreatedAt
-			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
-		}
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer CloseCursor(cursor)
-		if err != nil {
-			return NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, a)
-			if err != nil {
-				return NewServerError(err.Error())
-			}
-		}
-	} else {
-		return NewBusinessError("There is no key or id for this Argument.")
-	}
-
-	return nil
-}
-
-// TODO
-func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
-	if err := a.Load(ctx); err != nil {
-		return err
-	}
-
-	args, err := a.Arguments(ctx)
-	if err != nil {
-		return err
-	}
-
-	var proArgs, conArgs []Argument
-	for _, arg := range args {
-		bc := Claim{}
-		bc.ID = arg.ClaimID
-		bc.QueryAt = a.QueryDate()
-		if err := bc.Load(ctx); err != nil {
-			return err
-		}
-		bc.QueryAt = nil
-		arg.Claim = &bc
-
-		if arg.Pro {
-			proArgs = append(proArgs, arg)
-		} else {
-			conArgs = append(conArgs, arg)
-		}
-	}
-
-	a.ProArgs = proArgs
-	a.ConArgs = conArgs
-
-	baseClaim := Claim{}
-	baseClaim.ID = a.ClaimID
-	baseClaim.QueryAt = a.QueryDate()
-	if err = baseClaim.LoadFull(ctx); err != nil {
-		return err
-	}
-	baseClaim.QueryAt = nil
-	a.Claim = &baseClaim
-
-	return nil
-}
-
-// Updater
 
 func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) GruffError {
 	if err := a.ValidateForUpdate(updates); err != nil {
@@ -439,8 +273,6 @@ func (a *Argument) version(ctx *ServerContext) GruffError {
 	return nil
 }
 
-// Deleter
-
 func (a *Argument) Delete(ctx *ServerContext) GruffError {
 	// TODO: test
 	if err := a.ValidateForDelete(); err != nil {
@@ -504,6 +336,168 @@ func (a *Argument) Delete(ctx *ServerContext) GruffError {
 			return err
 		}
 	}
+
+	return nil
+}
+
+// Restrictor
+// TODO: Test
+// TODO: Call in CRUD and other methods
+func (a Argument) UserCanView(ctx *ServerContext) (bool, GruffError) {
+	return true, nil
+}
+
+func (a Argument) UserCanCreate(ctx *ServerContext) (bool, GruffError) {
+	return ctx.UserLoggedIn(), nil
+}
+
+func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, GruffError) {
+	return a.UserCanDelete(ctx)
+}
+
+func (a Argument) UserCanDelete(ctx *ServerContext) (bool, GruffError) {
+	u := ctx.UserContext
+	if u.Curator {
+		return true, nil
+	}
+	return a.CreatedByID == u.ArangoID(), nil
+}
+
+// Validator
+
+func (a Argument) ValidateForCreate() GruffError {
+	if err := a.ValidateField("title"); err != nil {
+		return err
+	}
+	if err := a.ValidateField("desc"); err != nil {
+		return err
+	}
+	if err := a.ValidateIDs(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a Argument) ValidateForUpdate(updates map[string]interface{}) GruffError {
+	if a.DeletedAt != nil {
+		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
+	}
+	if err := SetJsonValuesOnStruct(&a, updates); err != nil {
+		return err
+	}
+	return a.ValidateForCreate()
+}
+
+func (a Argument) ValidateForDelete() GruffError {
+	if a.DeletedAt != nil {
+		return NewBusinessError("This argument has already been deleted or versioned.")
+	}
+	return nil
+}
+
+func (a Argument) ValidateField(f string) GruffError {
+	err := ValidateStructField(a, f)
+	return err
+}
+
+func (a Argument) ValidateIDs() GruffError {
+	if a.ClaimID == "" {
+		return NewBusinessError("claimId: non zero value required;")
+	}
+	if a.TargetClaimID == nil && a.TargetArgumentID == nil {
+		return NewBusinessError("An Argument must have a target Claim or target Argument ID")
+	}
+	if a.TargetClaimID != nil && a.TargetArgumentID != nil {
+		return NewBusinessError("An Argument can have only one target Claim or target Argument ID")
+	}
+	return nil
+}
+
+// Loader
+
+func (a *Argument) Load(ctx *ServerContext) GruffError {
+	db := ctx.Arango.DB
+
+	col, err := ctx.Arango.CollectionFor(a)
+	if err != nil {
+		return err
+	}
+
+	if a.ArangoKey() != "" {
+		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), a)
+		if dberr != nil {
+			return NewServerError(dberr.Error())
+		}
+	} else if a.ID != "" {
+		var empty time.Time
+		var query string
+		bindVars := map[string]interface{}{
+			"id": a.ID,
+		}
+		if a.CreatedAt == empty {
+			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
+		} else {
+			bindVars["start"] = a.CreatedAt
+			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
+		}
+		cursor, err := db.Query(ctx.Context, query, bindVars)
+		defer CloseCursor(cursor)
+		if err != nil {
+			return NewServerError(err.Error())
+		}
+		for cursor.HasMore() {
+			_, err := cursor.ReadDocument(ctx.Context, a)
+			if err != nil {
+				return NewServerError(err.Error())
+			}
+		}
+	} else {
+		return NewBusinessError("There is no key or id for this Argument.")
+	}
+
+	return nil
+}
+
+// TODO
+func (a *Argument) LoadFull(ctx *ServerContext) GruffError {
+	if err := a.Load(ctx); err != nil {
+		return err
+	}
+
+	args, err := a.Arguments(ctx)
+	if err != nil {
+		return err
+	}
+
+	var proArgs, conArgs []Argument
+	for _, arg := range args {
+		bc := Claim{}
+		bc.ID = arg.ClaimID
+		bc.QueryAt = a.QueryDate()
+		if err := bc.Load(ctx); err != nil {
+			return err
+		}
+		bc.QueryAt = nil
+		arg.Claim = &bc
+
+		if arg.Pro {
+			proArgs = append(proArgs, arg)
+		} else {
+			conArgs = append(conArgs, arg)
+		}
+	}
+
+	a.ProArgs = proArgs
+	a.ConArgs = conArgs
+
+	baseClaim := Claim{}
+	baseClaim.ID = a.ClaimID
+	baseClaim.QueryAt = a.QueryDate()
+	if err = baseClaim.LoadFull(ctx); err != nil {
+		return err
+	}
+	baseClaim.QueryAt = nil
+	a.Claim = &baseClaim
 
 	return nil
 }

@@ -44,12 +44,14 @@ func cleanData(db arango.Database) {
 	ctx := ArangoContext{DB: db}
 
 	models := []ArangoObject{
-		User{},
-		Inference{},
-		BaseClaimEdge{},
-		PremiseEdge{},
-		Argument{},
-		Claim{},
+		&Inference{},
+		&BaseClaimEdge{},
+		&PremiseEdge{},
+		&ContextEdge{},
+		&Argument{},
+		&Context{},
+		&Claim{},
+		&User{},
 	}
 
 	for _, m := range models {

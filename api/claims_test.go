@@ -78,7 +78,7 @@ func seedClaimByUser() (gruff.User, gruff.Claim) {
 	}
 	CTX.UserContext.Key = u.ArangoID()
 
-	claim.Identifier.CreatedByID = u.ArangoID()
+	claim.VersionedModel.CreatedByID = u.ArangoID()
 	return u, claim
 }
 

@@ -702,7 +702,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 	err := claim.Create(CTX)
 	assert.NoError(t, err)
 	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
-	col, _ := CTX.Arango.CollectionFor(claim)
+	col, _ := CTX.Arango.CollectionFor(&claim)
 	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
 
 	firstKey := claim.ArangoKey()

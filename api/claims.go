@@ -39,7 +39,7 @@ func ListClaims(which string) func(c echo.Context) error {
 		case "top":
 			query = claim.QueryForTopLevelClaims(params)
 		case "new":
-			query = gruff.DefaultListQuery(claim, claim.DefaultQueryParameters())
+			query = gruff.DefaultListQuery(&claim, claim.DefaultQueryParameters())
 		default:
 			return AddGruffError(ctx, c, gruff.NewNotFoundError("Not found"))
 		}

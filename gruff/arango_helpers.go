@@ -16,6 +16,15 @@ type ArangoObject interface {
 	ArangoKey() string
 	ArangoID() string
 	DefaultQueryParameters() ArangoQueryParameters
+	Create(*ServerContext) GruffError
+	Update(*ServerContext, map[string]interface{}) GruffError
+	Delete(*ServerContext) GruffError
+}
+
+// TODO: Test
+func IsArangoObject(t reflect.Type) bool {
+	modelType := reflect.TypeOf((*ArangoObject)(nil)).Elem()
+	return t.Implements(modelType)
 }
 
 type ArangoContext struct {
