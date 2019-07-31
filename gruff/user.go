@@ -73,63 +73,14 @@ func (u *User) Create(ctx *ServerContext) Error {
 	return nil
 }
 
+// TODO: Test
 func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) Error {
-	if err := u.ValidateForUpdate(updates); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := u.UserCanUpdate(ctx, updates)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to modify this item")
-	}
-
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-
-	}
-
-	if _, err := col.UpdateDocument(ctx.Context, u.ArangoKey(), updates); err != nil {
-		return NewServerError(err.Error())
-	}
-
-	return u.Load(ctx)
+	return UpdateArangoObject(ctx, u, updates)
 }
 
 // TODO: Test
 func (u *User) Delete(ctx *ServerContext) Error {
-	// TODO: test
-	if err := u.ValidateForDelete(); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := u.UserCanDelete(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to delete this account")
-	}
-
-	u.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": u.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.UpdateDocument(ctx.Context, u.ArangoKey(), patch)
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, u)
 }
 
 // Restrictor

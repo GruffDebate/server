@@ -49,20 +49,7 @@ func (p *PremiseEdge) Update(ctx *ServerContext, updates map[string]interface{})
 }
 
 func (p *PremiseEdge) Delete(ctx *ServerContext) Error {
-	p.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": p.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(p)
-	if err != nil {
-		return err
-	}
-	_, aerr := col.UpdateDocument(ctx.Context, p.ArangoKey(), patch)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, p)
 }
 
 // TODO: Preserve history...

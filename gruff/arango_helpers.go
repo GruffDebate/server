@@ -19,6 +19,8 @@ type ArangoObject interface {
 	Create(*ServerContext) Error
 	Update(*ServerContext, map[string]interface{}) Error
 	Delete(*ServerContext) Error
+	PrepareForCreate(*ServerContext)
+	PrepareForDelete(*ServerContext)
 }
 
 // TODO: Test
@@ -150,6 +152,75 @@ func (aqp ArangoQueryParameters) Apply(query string) string {
 	}
 
 	return fmt.Sprintf(query, sort, limit, ret)
+}
+
+// Default CRUD Operations
+
+func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates map[string]interface{}) Error {
+	if IsValidator(reflect.TypeOf(obj)) {
+		v := obj.(Validator)
+		if err := v.ValidateForUpdate(updates); err != nil {
+			return err
+		}
+	}
+
+	if IsRestrictor(reflect.TypeOf(obj)) {
+		r := obj.(Restrictor)
+		can, err := r.UserCanUpdate(ctx, updates)
+		if err != nil {
+			return err
+		}
+		if !can {
+			return NewPermissionError("You do not have permission to modify this item")
+		}
+	}
+
+	col, err := ctx.Arango.CollectionFor(obj)
+	if err != nil {
+		return err
+
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, obj.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	return nil
+}
+
+func DeleteArangoObject(ctx *ServerContext, obj ArangoObject) Error {
+	if IsValidator(reflect.TypeOf(obj)) {
+		v := obj.(Validator)
+		if err := v.ValidateForDelete(); err != nil {
+			return err
+		}
+	}
+
+	if IsRestrictor(reflect.TypeOf(obj)) {
+		r := obj.(Restrictor)
+		can, err := r.UserCanDelete(ctx)
+		if err != nil {
+			return err
+		}
+		if !can {
+			return NewPermissionError("You do not have permission to delete this item")
+		}
+	}
+
+	obj.PrepareForDelete(ctx)
+	patch := map[string]interface{}{
+		"end": ctx.RequestTime(),
+	}
+	col, err := ctx.Arango.CollectionFor(obj)
+	if err != nil {
+		return err
+	}
+	_, dberr := col.UpdateDocument(ctx.Context, obj.ArangoKey(), patch)
+	if dberr != nil {
+		return NewServerError(dberr.Error())
+	}
+
+	return nil
 }
 
 // Default Finders

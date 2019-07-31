@@ -275,30 +275,9 @@ func (a *Argument) version(ctx *ServerContext) Error {
 
 func (a *Argument) Delete(ctx *ServerContext) Error {
 	// TODO: test
-	if err := a.ValidateForDelete(); err != nil {
+	if err := DeleteArangoObject(ctx, a); err != nil {
+		ctx.Rollback()
 		return err
-	}
-
-	// TODO: Test
-	can, err := a.UserCanDelete(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to delete this item")
-	}
-
-	a.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": a.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(a)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.UpdateDocument(ctx.Context, a.ArangoKey(), patch)
-	if dberr != nil {
-		return NewServerError(dberr.Error())
 	}
 
 	// Find all edges going to old ver, make copy to new ver

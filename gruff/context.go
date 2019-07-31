@@ -136,20 +136,6 @@ func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) Err
 
 // TODO: Test
 func (c *Context) Delete(ctx *ServerContext) Error {
-	// TODO: test
-	if err := c.ValidateForDelete(); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := c.UserCanDelete(ctx)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to delete this item")
-	}
-
 	n, err := c.NumberOfClaims(ctx)
 	if err != nil {
 		return err
@@ -158,16 +144,7 @@ func (c *Context) Delete(ctx *ServerContext) Error {
 		return NewBusinessError("A context cannot be deleted if it's used by any claims")
 	}
 
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-	_, dberr := col.RemoveDocument(ctx.Context, c.ArangoKey())
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, c)
 }
 
 // Restrictor

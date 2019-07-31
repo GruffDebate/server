@@ -347,19 +347,10 @@ func (c *Claim) Delete(ctx *ServerContext) Error {
 
 	// TODO: Links
 
-	c.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": c.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
+	if err := DeleteArangoObject(ctx, c); err != nil {
+		ctx.Rollback()
 		return err
 	}
-	_, dberr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
-	if dberr != nil {
-		return NewServerError(dberr.Error())
-	}
-
 	return nil
 }
 

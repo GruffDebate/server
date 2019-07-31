@@ -54,6 +54,19 @@ func startDBLog() {
 func stopDBLog() {
 }
 
+func TestIsArangoObject(t *testing.T) {
+	assert.False(t, IsArangoObject(reflect.TypeOf(User{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&User{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&Claim{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&Argument{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&Context{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&Inference{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&BaseClaimEdge{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&PremiseEdge{})))
+	assert.True(t, IsArangoObject(reflect.TypeOf(&ContextEdge{})))
+	assert.False(t, IsArangoObject(reflect.TypeOf(&Link{})))
+}
+
 func TestDefaultListQuery(t *testing.T) {
 	params := DEFAULT_QUERY_PARAMETERS
 	var obj ArangoObject

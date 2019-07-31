@@ -48,18 +48,5 @@ func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates map[string]interface
 }
 
 func (bc *BaseClaimEdge) Delete(ctx *ServerContext) Error {
-	bc.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": bc.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(bc)
-	if err != nil {
-		return err
-	}
-	_, aerr := col.UpdateDocument(ctx.Context, bc.ArangoKey(), patch)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, bc)
 }

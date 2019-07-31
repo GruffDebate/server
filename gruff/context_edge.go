@@ -48,20 +48,7 @@ func (c *ContextEdge) Update(ctx *ServerContext, updates map[string]interface{})
 }
 
 func (c *ContextEdge) Delete(ctx *ServerContext) Error {
-	c.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": c.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-	_, aerr := col.UpdateDocument(ctx.Context, c.ArangoKey(), patch)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, c)
 }
 
 // Business methods

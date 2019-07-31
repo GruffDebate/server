@@ -48,18 +48,5 @@ func (i *Inference) Update(ctx *ServerContext, updates map[string]interface{}) E
 }
 
 func (i *Inference) Delete(ctx *ServerContext) Error {
-	i.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
-		"end": i.DeletedAt,
-	}
-	col, err := ctx.Arango.CollectionFor(i)
-	if err != nil {
-		return err
-	}
-	_, aerr := col.UpdateDocument(ctx.Context, i.ArangoKey(), patch)
-	if aerr != nil {
-		return NewServerError(aerr.Error())
-	}
-
-	return nil
+	return DeleteArangoObject(ctx, i)
 }
