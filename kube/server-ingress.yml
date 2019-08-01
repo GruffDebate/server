@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: server-ingress
+  annotations:  
+    kubernetes.io/ingress.class: nginx
+    certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - rest.gruff.org
+    secretName: letsencrypt-prod
+  rules:
+  - host: rest.gruff.org
+    http:
+      paths:
+      - backend:
+          serviceName: server
+          servicePort: 8080
