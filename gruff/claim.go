@@ -86,7 +86,7 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 	return CreateArangoObject(ctx, c)
 }
 
-func (c *Claim) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (c *Claim) Update(ctx *ServerContext, updates Updates) Error {
 	return UpdateArangoObject(ctx, c, updates)
 }
 
@@ -203,12 +203,10 @@ func (c *Claim) version(ctx *ServerContext) Error {
 }
 
 func (c *Claim) Delete(ctx *ServerContext) Error {
-	// TODO: test
 	if err := c.ValidateForDelete(); err != nil {
 		return err
 	}
 
-	// TODO: Test
 	can, err := c.UserCanDelete(ctx)
 	if err != nil {
 		return err
@@ -305,8 +303,7 @@ func (c *Claim) Delete(ctx *ServerContext) Error {
 }
 
 // Restrictor
-// TODO: Test
-// TODO: Call in CRUD and other methods
+
 func (c Claim) UserCanView(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
@@ -315,7 +312,7 @@ func (c Claim) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (c Claim) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
+func (c Claim) UserCanUpdate(ctx *ServerContext, updates Updates) (bool, Error) {
 	return c.UserCanDelete(ctx)
 }
 
@@ -339,7 +336,7 @@ func (c Claim) ValidateForCreate() Error {
 	return ValidateStruct(c)
 }
 
-func (c Claim) ValidateForUpdate(updates map[string]interface{}) Error {
+func (c Claim) ValidateForUpdate(updates Updates) Error {
 	if c.DeletedAt != nil {
 		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
 	}
@@ -380,7 +377,7 @@ func (c *Claim) Load(ctx *ServerContext) Error {
 			return NewServerError(dberr.Error())
 		}
 	} else if c.ID != "" {
-		bindVars := map[string]interface{}{
+		bindVars := BindVars{
 			"id": c.ID,
 		}
 		query := fmt.Sprintf(`FOR obj IN %s 
@@ -464,50 +461,11 @@ func (c *Claim) LoadFull(ctx *ServerContext) Error {
 
 // Arguments
 
-func (c Claim) AddArgument(ctx *ServerContext, a Argument) Error {
-	updates := map[string]interface{}{}
-	if err := c.ValidateForUpdate(updates); err != nil {
-		return err
-	}
-
-	// TODO: Test
-	can, err := c.UserCanUpdate(ctx, updates)
-	if err != nil {
-		return err
-	}
-	if !can {
-		return NewPermissionError("You do not have permission to modify this item")
-	}
-
-	// TODO: Test
-	if c.MultiPremise {
-		ctx.Rollback()
-		return NewBusinessError("Multi-premise claims can't have their own arguments. Arguments should be added directly to one of their premises.")
-	}
-
-	// TODO: Test
-	if a.ClaimID == c.ID {
-		ctx.Rollback()
-		return NewBusinessError("A claim cannot be used as an argument for or against itself. That's called \"Begging the Question\".")
-	}
-
-	edge := Inference{Edge: Edge{
-		From: c.ArangoID(),
-		To:   a.ArangoID(),
-	}}
-
-	if err := edge.Create(ctx); err != nil {
-		ctx.Rollback()
-		return err
-	}
-	return nil
-}
-
 func (c Claim) Arguments(ctx *ServerContext) ([]Argument, Error) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"claim": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s
@@ -542,7 +500,7 @@ func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, Error)
 	db := ctx.Arango.DB
 	args := []Argument{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"claim": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s
@@ -577,7 +535,7 @@ func (c Claim) Inferences(ctx *ServerContext) ([]Inference, Error) {
 	db := ctx.Arango.DB
 	edges := []Inference{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"from": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -612,7 +570,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	}
 
 	c.QueryAt = nil
-	updates := map[string]interface{}{}
+	updates := Updates{}
 
 	if err := c.ValidateForUpdate(updates); err != nil {
 		ctx.Rollback()
@@ -663,7 +621,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 
 	// TODO: move the arguments to the first premise
 	if !c.MultiPremise {
-		updates := map[string]interface{}{
+		updates := Updates{
 			"mp":     true,
 			"mprule": PREMISE_RULE_ALL,
 		}
@@ -699,7 +657,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 }
 
 func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) Error {
-	updates := map[string]interface{}{}
+	updates := Updates{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -752,7 +710,7 @@ func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) Error {
 
 	// TODO: make sure that a new version DOESN'T have the deleted edge
 	if len(premiseEdges) == 1 {
-		updates := map[string]interface{}{
+		updates := Updates{
 			"mp":     false,
 			"mprule": PREMISE_RULE_NONE,
 		}
@@ -775,7 +733,7 @@ func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, Er
 	premise.Key = premiseArangoKey
 
 	qctx := arango.WithQueryCount(ctx.Context)
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"rootc":   c.ArangoID(),
 		"targetc": premise.ArangoID(),
 	}
@@ -798,7 +756,7 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, Error) {
 	premises := []Claim{}
 
 	if c.MultiPremise {
-		bindVars := map[string]interface{}{
+		bindVars := BindVars{
 			"claim": c.ArangoID(),
 		}
 		query := fmt.Sprintf(`FOR obj IN %s
@@ -834,7 +792,7 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 	premises := []Claim{}
 
 	// TODO: test
-	updates := map[string]interface{}{}
+	updates := Updates{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return premises, err
 	}
@@ -915,7 +873,7 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"from": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -949,7 +907,7 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, Error) {
 	if c.MultiPremise {
 		qctx := arango.WithQueryCount(ctx.Context)
 
-		bindVars := map[string]interface{}{
+		bindVars := BindVars{
 			"from": c.ArangoID(),
 		}
 		query := fmt.Sprintf(`FOR obj IN %s 
@@ -974,7 +932,7 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"to": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -1007,7 +965,7 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []BaseClaimEdge{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"to": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -1036,7 +994,7 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
 // Contexts
 func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 	c.QueryAt = nil
-	updates := map[string]interface{}{}
+	updates := Updates{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		ctx.Rollback()
 		return err
@@ -1084,7 +1042,7 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 }
 
 func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) Error {
-	updates := map[string]interface{}{}
+	updates := Updates{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -1140,7 +1098,7 @@ func (c Claim) Contexts(ctx *ServerContext) ([]Context, Error) {
 			})
 		}
 	} else {
-		bindVars := map[string]interface{}{
+		bindVars := BindVars{
 			"claim": c.ArangoID(),
 		}
 		query := fmt.Sprintf(`FOR obj IN %s
@@ -1177,7 +1135,7 @@ func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, Error) {
 	db := ctx.Arango.DB
 	edges := []ContextEdge{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"to": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -1275,7 +1233,7 @@ func (c Claim) HasCycle(ctx *ServerContext) (bool, Error) {
 	db := ctx.Arango.DB
 
 	qctx := arango.WithQueryCount(ctx.Context)
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"claim": c.ArangoID(),
 	}
 	// TODO: Add PRUNE?

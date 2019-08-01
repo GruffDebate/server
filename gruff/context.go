@@ -83,7 +83,7 @@ func (c *Context) Create(ctx *ServerContext) Error {
 
 // TODO: Test
 // TODO: generic...
-func (c *Context) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (c *Context) Update(ctx *ServerContext, updates Updates) Error {
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (c Context) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (c Context) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
+func (c Context) UserCanUpdate(ctx *ServerContext, updates Updates) (bool, Error) {
 	return c.UserCanDelete(ctx)
 }
 
@@ -149,7 +149,7 @@ func (c Context) ValidateForCreate() Error {
 	return ValidateStruct(c)
 }
 
-func (c Context) ValidateForUpdate(updates map[string]interface{}) Error {
+func (c Context) ValidateForUpdate(updates Updates) Error {
 	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (c Context) NumberOfClaims(ctx *ServerContext) (int64, Error) {
 	qctx := arango.WithQueryCount(ctx.Context)
 
 	var n int64
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"from": c.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -194,7 +194,7 @@ func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
 	db := ctx.Arango.DB
 
 	context := Context{}
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"context": contextArangoId,
 	}
 	query := fmt.Sprintf(`FOR obj IN %s

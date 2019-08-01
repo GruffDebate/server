@@ -17,7 +17,7 @@ func (l Link) ValidateForCreate() Error {
 	return ValidateStruct(l)
 }
 
-func (l Link) ValidateForUpdate(updates map[string]interface{}) Error {
+func (l Link) ValidateForUpdate(updates Updates) Error {
 	if err := SetJsonValuesOnStruct(&l, updates); err != nil {
 		return err
 	}

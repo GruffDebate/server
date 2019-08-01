@@ -32,7 +32,7 @@ func (bc *BaseClaimEdge) Create(ctx *ServerContext) Error {
 	return CreateArangoObject(ctx, bc)
 }
 
-func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (bc *BaseClaimEdge) Update(ctx *ServerContext, updates Updates) Error {
 	return NewServerError("This item cannot be modified")
 }
 

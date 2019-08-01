@@ -33,7 +33,7 @@ func (p *PremiseEdge) Create(ctx *ServerContext) Error {
 	return CreateArangoObject(ctx, p)
 }
 
-func (p *PremiseEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (p *PremiseEdge) Update(ctx *ServerContext, updates Updates) Error {
 	return NewServerError("This item cannot be modified")
 }
 
@@ -48,7 +48,7 @@ func (p *PremiseEdge) UpdateOrder(ctx *ServerContext, order int) Error {
 		return err
 	}
 
-	patch := map[string]interface{}{"order": order}
+	patch := BindVars{"order": order}
 	_, aerr := col.UpdateDocument(ctx.Context, p.ArangoKey(), patch)
 	if aerr != nil {
 		return NewServerError(aerr.Error())

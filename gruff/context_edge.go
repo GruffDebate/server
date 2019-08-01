@@ -32,7 +32,7 @@ func (c *ContextEdge) Create(ctx *ServerContext) Error {
 	return CreateArangoObject(ctx, c)
 }
 
-func (c *ContextEdge) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (c *ContextEdge) Update(ctx *ServerContext, updates Updates) Error {
 	return NewServerError("This item cannot be modified")
 }
 
@@ -51,7 +51,7 @@ func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string
 	claim.Key = claimArangoKey
 
 	edge := ContextEdge{}
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"claim":   claim.ArangoID(),
 		"context": context.ArangoID(),
 	}

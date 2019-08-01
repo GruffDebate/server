@@ -9,7 +9,7 @@ import (
 
 type Validator interface {
 	ValidateForCreate() Error
-	ValidateForUpdate(map[string]interface{}) Error
+	ValidateForUpdate(Updates) Error
 	ValidateForDelete() Error
 	ValidateField(string) Error
 }

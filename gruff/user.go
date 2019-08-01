@@ -74,7 +74,7 @@ func (u *User) Create(ctx *ServerContext) Error {
 }
 
 // TODO: Test
-func (u *User) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (u *User) Update(ctx *ServerContext, updates Updates) Error {
 	return UpdateArangoObject(ctx, u, updates)
 }
 
@@ -98,7 +98,7 @@ func (u User) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return true, nil
 }
 
-func (u User) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
+func (u User) UserCanUpdate(ctx *ServerContext, updates Updates) (bool, Error) {
 	return u.UserCanView(ctx)
 }
 
@@ -129,7 +129,7 @@ func (u User) ValidateForCreate() Error {
 	return nil
 }
 
-func (u User) ValidateForUpdate(updates map[string]interface{}) Error {
+func (u User) ValidateForUpdate(updates Updates) Error {
 	updated := User{
 		Name:     updates["name"].(string),
 		Email:    updates["email"].(string),
@@ -195,7 +195,7 @@ func (u *User) Load(ctx *ServerContext) Error {
 	}
 
 	var query string
-	bindVars := make(map[string]interface{})
+	bindVars := make(BindVars)
 	if u.ArangoKey() != "" {
 		_, dberr := col.ReadDocument(ctx.Context, u.ArangoKey(), u)
 		if dberr != nil {
@@ -261,7 +261,7 @@ func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) Error {
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 
 	u.HashedPassword = string(hashedPassword[:])
-	update := map[string]interface{}{
+	update := Updates{
 		"hashed_password": u.HashedPassword,
 	}
 

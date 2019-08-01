@@ -32,7 +32,7 @@ func (i *Inference) Create(ctx *ServerContext) Error {
 	return CreateArangoObject(ctx, i)
 }
 
-func (i *Inference) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (i *Inference) Update(ctx *ServerContext, updates Updates) Error {
 	return NewServerError("This item cannot be modified")
 }
 

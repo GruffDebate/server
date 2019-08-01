@@ -2108,3 +2108,117 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "A claim that has already been deleted, or has a newer version, cannot be modified.", err.Error())
 }
+
+func TestClaimValidateForDelete(t *testing.T) {
+	claim := Claim{}
+	assert.Nil(t, claim.ValidateForDelete())
+
+	claim.DeletedAt = support.TimePtr(time.Now())
+	err := claim.ValidateForDelete()
+	assert.NotNil(t, err)
+	assert.Equal(t, "This claim has already been deleted or versioned.", err.Error())
+}
+
+func TestClaimUserCanDelete(t *testing.T) {
+	u := User{}
+	CTX.UserContext = u
+
+	claim := Claim{}
+	can, err := claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	u.PrepareForCreate(CTX)
+	CTX.UserContext = u
+	claim = Claim{}
+	can, err = claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	claim = Claim{}
+	can, err = claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	claim.CreatedByID = u.ArangoID()
+	can, err = claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.True(t, can)
+
+	u = User{}
+	u.PrepareForCreate(CTX)
+	CTX.UserContext = u
+	can, err = claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	u.Curator = true
+	CTX.UserContext = u
+	can, err = claim.UserCanDelete(CTX)
+	assert.Nil(t, err)
+	assert.True(t, can)
+}
+
+func TestClaimUserCanCreate(t *testing.T) {
+	u := User{}
+	CTX.UserContext = u
+
+	claim := Claim{}
+	can, err := claim.UserCanCreate(CTX)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	u.PrepareForCreate(CTX)
+	CTX.UserContext = u
+
+	can, err = claim.UserCanCreate(CTX)
+	assert.Nil(t, err)
+	assert.True(t, can)
+
+	u.Curator = true
+	CTX.UserContext = u
+	can, err = claim.UserCanCreate(CTX)
+	assert.Nil(t, err)
+	assert.True(t, can)
+}
+
+func TestClaimUserCanUpdate(t *testing.T) {
+	u := User{}
+	CTX.UserContext = u
+
+	updates := map[string]interface{}{}
+
+	claim := Claim{}
+	can, err := claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	u.PrepareForCreate(CTX)
+	CTX.UserContext = u
+	can, err = claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	claim.UpdatedByID = u.ArangoID()
+	can, err = claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	claim.CreatedByID = u.ArangoID()
+	can, err = claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.True(t, can)
+
+	u = User{}
+	u.PrepareForCreate(CTX)
+	CTX.UserContext = u
+	can, err = claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.False(t, can)
+
+	u.Curator = true
+	CTX.UserContext = u
+	can, err = claim.UserCanUpdate(CTX, updates)
+	assert.Nil(t, err)
+	assert.True(t, can)
+}

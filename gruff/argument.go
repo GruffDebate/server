@@ -88,6 +88,50 @@ func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (a *Argument) Create(ctx *ServerContext) Error {
+	if a.TargetClaimID != nil {
+		claim := Claim{}
+		claim.ID = *a.TargetClaimID
+		if err := claim.Load(ctx); err != nil {
+			ctx.Rollback()
+			return NewBusinessError(err.Error())
+		}
+
+		// TODO: Test
+		if claim.MultiPremise {
+			ctx.Rollback()
+			return NewBusinessError("Multi-premise claims can't have their own arguments. Arguments should be added directly to one of their premises.")
+		}
+
+		// TODO: Test
+		if a.ClaimID == claim.ID {
+			ctx.Rollback()
+			return NewBusinessError("A claim cannot be used as an argument for or against itself. That's called \"Begging the Question\".")
+		}
+
+		// TODO: Test
+		if err := claim.ValidateForUpdate(Updates{}); err != nil {
+			ctx.Rollback()
+			return err
+		}
+
+		a.TargetClaim = &claim
+	} else if a.TargetArgumentID != nil {
+		arg := Argument{}
+		arg.ID = *a.TargetArgumentID
+		if err := arg.Load(ctx); err != nil {
+			ctx.Rollback()
+			return NewBusinessError(err.Error())
+		}
+
+		// TODO: Test
+		if err := arg.ValidateForUpdate(Updates{}); err != nil {
+			ctx.Rollback()
+			return err
+		}
+
+		a.TargetArgument = &arg
+	}
+
 	var baseClaim Claim
 	if a.ClaimID == "" {
 		// Need to create a Base Claim for this Argument with the same title and description
@@ -120,40 +164,28 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 		From: a.ArangoID(),
 		To:   baseClaim.ArangoID(),
 	}}
-
 	if err := edge.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
 
+	inf := Inference{Edge: Edge{
+		To: a.ArangoID(),
+	}}
 	if a.TargetClaimID != nil {
-		targetClaim := Claim{}
-		targetClaim.ID = *a.TargetClaimID
-		if err := (&targetClaim).Load(ctx); err != nil {
-			ctx.Rollback()
-			return err
-		}
-		if err := targetClaim.AddArgument(ctx, *a); err != nil {
-			ctx.Rollback()
-			return err
-		}
+		inf.From = a.TargetClaim.ArangoID()
 	} else {
-		targetArg := Argument{}
-		targetArg.ID = *a.TargetArgumentID
-		if err := targetArg.Load(ctx); err != nil {
-			ctx.Rollback()
-			return err
-		}
-		if err := targetArg.AddArgument(ctx, *a); err != nil {
-			ctx.Rollback()
-			return err
-		}
+		inf.From = a.TargetArgument.ArangoID()
+	}
+	if err := inf.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
 	}
 
 	return nil
 }
 
-func (a *Argument) Update(ctx *ServerContext, updates map[string]interface{}) Error {
+func (a *Argument) Update(ctx *ServerContext, updates Updates) Error {
 	return UpdateArangoObject(ctx, a, updates)
 }
 
@@ -282,7 +314,7 @@ func (a Argument) UserCanCreate(ctx *ServerContext) (bool, Error) {
 	return ctx.UserLoggedIn(), nil
 }
 
-func (a Argument) UserCanUpdate(ctx *ServerContext, updates map[string]interface{}) (bool, Error) {
+func (a Argument) UserCanUpdate(ctx *ServerContext, updates Updates) (bool, Error) {
 	return a.UserCanDelete(ctx)
 }
 
@@ -309,7 +341,7 @@ func (a Argument) ValidateForCreate() Error {
 	return nil
 }
 
-func (a Argument) ValidateForUpdate(updates map[string]interface{}) Error {
+func (a Argument) ValidateForUpdate(updates Updates) Error {
 	if a.DeletedAt != nil {
 		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
 	}
@@ -362,7 +394,7 @@ func (a *Argument) Load(ctx *ServerContext) Error {
 	} else if a.ID != "" {
 		var empty time.Time
 		var query string
-		bindVars := map[string]interface{}{
+		bindVars := BindVars{
 			"id": a.ID,
 		}
 		if a.CreatedAt == empty {
@@ -437,7 +469,7 @@ func (a *Argument) LoadFull(ctx *ServerContext) Error {
 
 func (a Argument) AddArgument(ctx *ServerContext, arg Argument) Error {
 	// TODO: test
-	updates := map[string]interface{}{}
+	updates := Updates{}
 	if err := a.ValidateForUpdate(updates); err != nil {
 		return err
 	}
@@ -467,7 +499,7 @@ func (a Argument) Arguments(ctx *ServerContext) ([]Argument, Error) {
 	db := ctx.Arango.DB
 	args := []Argument{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"arg": a.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s
@@ -503,7 +535,7 @@ func (a Argument) Inferences(ctx *ServerContext) ([]Inference, Error) {
 	db := ctx.Arango.DB
 	edges := []Inference{}
 
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"from": a.ArangoID(),
 	}
 	query := fmt.Sprintf(`FOR obj IN %s 
@@ -534,7 +566,7 @@ func (a Argument) Inference(ctx *ServerContext) (Inference, Error) {
 	edge := Inference{}
 
 	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to LIMIT 1 RETURN e", edge.CollectionName())
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"to": a.ArangoID(),
 	}
 	cursor, err := db.Query(ctx.Context, query, bindVars)
@@ -557,7 +589,7 @@ func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, Error) {
 	edge := BaseClaimEdge{}
 
 	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from LIMIT 1 RETURN e", edge.CollectionName())
-	bindVars := map[string]interface{}{
+	bindVars := BindVars{
 		"from": a.ArangoID(),
 	}
 	cursor, err := db.Query(ctx.Context, query, bindVars)

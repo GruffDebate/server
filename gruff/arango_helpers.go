@@ -11,13 +11,16 @@ import (
 	"github.com/arangodb/go-driver/http"
 )
 
+type Updates map[string]interface{}
+type BindVars map[string]interface{}
+
 type ArangoObject interface {
 	CollectionName() string
 	ArangoKey() string
 	ArangoID() string
 	DefaultQueryParameters() ArangoQueryParameters
 	Create(*ServerContext) Error
-	Update(*ServerContext, map[string]interface{}) Error
+	Update(*ServerContext, Updates) Error
 	Delete(*ServerContext) Error
 	PrepareForCreate(*ServerContext)
 	PrepareForDelete(*ServerContext)
@@ -189,7 +192,7 @@ func CreateArangoObject(ctx *ServerContext, obj ArangoObject) Error {
 	return nil
 }
 
-func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates map[string]interface{}) Error {
+func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates Updates) Error {
 	if IsValidator(reflect.TypeOf(obj)) {
 		v := obj.(Validator)
 		if err := v.ValidateForUpdate(updates); err != nil {
@@ -250,7 +253,7 @@ func DeleteArangoObject(ctx *ServerContext, obj ArangoObject) Error {
 	}
 
 	obj.PrepareForDelete(ctx)
-	patch := map[string]interface{}{
+	patch := Updates{
 		"end": ctx.RequestTime(),
 	}
 	col, err := ctx.Arango.CollectionFor(obj)
@@ -277,7 +280,7 @@ func DefaultListQueryForUser(obj ArangoObject, params ArangoQueryParameters) str
 	return params.Apply(query)
 }
 
-func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars map[string]interface{}) ([]interface{}, Error) {
+func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars BindVars) ([]interface{}, Error) {
 	db := ctx.Arango.DB
 
 	objs := []interface{}{}
