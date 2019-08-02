@@ -379,18 +379,9 @@ func (a Argument) ValidateIDs() Error {
 // Loader
 
 func (a *Argument) Load(ctx *ServerContext) Error {
-	db := ctx.Arango.DB
-
-	col, err := ctx.Arango.CollectionFor(a)
-	if err != nil {
-		return err
-	}
-
+	var err Error
 	if a.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, a.ArangoKey(), a)
-		if dberr != nil {
-			return NewServerError(dberr.Error())
-		}
+		err = LoadArangoObject(ctx, a, a.ArangoKey())
 	} else if a.ID != "" {
 		var empty time.Time
 		var query string
@@ -403,29 +394,20 @@ func (a *Argument) Load(ctx *ServerContext) Error {
 			bindVars["start"] = a.CreatedAt
 			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
 		}
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer CloseCursor(cursor)
-		if err != nil {
-			return NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, a)
-			if err != nil {
-				return NewServerError(err.Error())
-			}
-		}
+		err = FindArangoObject(ctx, query, bindVars, a)
 	} else {
-		return NewBusinessError("There is no key or id for this Argument.")
+		err = NewBusinessError("There is no key or id for this Argument.")
 	}
 
-	return nil
+	return err
 }
 
-// TODO
 func (a *Argument) LoadFull(ctx *ServerContext) Error {
+	queryAt := a.QueryAt
 	if err := a.Load(ctx); err != nil {
 		return err
 	}
+	a.QueryAt = queryAt
 
 	args, err := a.Arguments(ctx)
 	if err != nil {
@@ -496,7 +478,6 @@ func (a Argument) AddArgument(ctx *ServerContext, arg Argument) Error {
 }
 
 func (a Argument) Arguments(ctx *ServerContext) ([]Argument, Error) {
-	db := ctx.Arango.DB
 	args := []Argument{}
 
 	bindVars := BindVars{
@@ -513,26 +494,11 @@ func (a Argument) Arguments(ctx *ServerContext) ([]Argument, Error) {
 		Argument{}.CollectionName(),
 		a.DateFilter(bindVars),
 	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
+	err := FindArangoObjects(ctx, query, bindVars, &args)
+	return args, err
 }
 
-// TODO: Make generic by moving method to inference.go
 func (a Argument) Inferences(ctx *ServerContext) ([]Inference, Error) {
-	db := ctx.Arango.DB
 	edges := []Inference{}
 
 	bindVars := BindVars{
@@ -544,67 +510,30 @@ func (a Argument) Inferences(ctx *ServerContext) ([]Inference, Error) {
                                 RETURN obj`,
 		Inference{}.CollectionName(),
 		a.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := Inference{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 func (a Argument) Inference(ctx *ServerContext) (Inference, Error) {
-	db := ctx.Arango.DB
 	edge := Inference{}
 
 	query := fmt.Sprintf("FOR e IN %s FILTER e._to == @to LIMIT 1 RETURN e", edge.CollectionName())
 	bindVars := BindVars{
 		"to": a.ArangoID(),
 	}
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edge, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edge, NewServerError(err.Error())
-		}
-	}
-
-	return edge, nil
+	err := FindArangoObject(ctx, query, bindVars, &edge)
+	return edge, err
 }
 
 func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, Error) {
-	db := ctx.Arango.DB
 	edge := BaseClaimEdge{}
 
 	query := fmt.Sprintf("FOR e IN %s FILTER e._from == @from LIMIT 1 RETURN e", edge.CollectionName())
 	bindVars := BindVars{
 		"from": a.ArangoID(),
 	}
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edge, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edge, NewServerError(err.Error())
-		}
-	}
-
-	return edge, nil
+	err := FindArangoObject(ctx, query, bindVars, &edge)
+	return edge, err
 }
 
 // TODO: Create method should set default Strength to 0.5

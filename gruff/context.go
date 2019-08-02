@@ -180,6 +180,7 @@ func (c Context) NumberOfClaims(ctx *ServerContext) (int64, Error) {
                                 FILTER obj._from == @from
                                 RETURN obj`,
 		ContextEdge{}.CollectionName())
+	// TODO: make generic arango count items method
 	cursor, err := db.Query(qctx, query, bindVars)
 	defer CloseCursor(cursor)
 	if err != nil {
@@ -191,8 +192,6 @@ func (c Context) NumberOfClaims(ctx *ServerContext) (int64, Error) {
 }
 
 func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
-	db := ctx.Arango.DB
-
 	context := Context{}
 	bindVars := BindVars{
 		"context": contextArangoId,
@@ -203,17 +202,6 @@ func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
                                       RETURN obj`,
 		Context{}.CollectionName(),
 	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return context, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &context)
-		if err != nil {
-			return context, NewServerError(err.Error())
-		}
-	}
-
-	return context, nil
+	err := FindArangoObject(ctx, query, bindVars, &context)
+	return context, err
 }

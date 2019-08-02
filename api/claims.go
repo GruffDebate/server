@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"reflect"
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/labstack/echo"
@@ -74,12 +73,12 @@ func AddContext(c echo.Context) error {
 		return AddError(ctx, c, err)
 	}
 
-	context, err := gruff.GetArangoObject(ctx, reflect.TypeOf(gruff.Context{}), id)
-	if err != nil {
+	context := gruff.Context{}
+	if err := gruff.LoadArangoObject(ctx, context, id); err != nil {
 		return AddError(ctx, c, err)
 	}
 
-	if err := claim.AddContext(ctx, *context.(*gruff.Context)); err != nil {
+	if err := claim.AddContext(ctx, context); err != nil {
 		return AddError(ctx, c, err)
 	}
 

@@ -280,39 +280,66 @@ func DefaultListQueryForUser(obj ArangoObject, params ArangoQueryParameters) str
 	return params.Apply(query)
 }
 
-func ListArangoObjects(ctx *ServerContext, t reflect.Type, query string, bindVars BindVars) ([]interface{}, Error) {
+func FindArangoObjects(ctx *ServerContext, query string, bindVars BindVars, results interface{}) Error {
 	db := ctx.Arango.DB
 
-	objs := []interface{}{}
+	dest := reflect.Indirect(reflect.ValueOf(results))
+	if dest.Kind() != reflect.Slice {
+		return NewServerError("Result object must be a pointer to an array of ArangoObjects")
+	}
 
 	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
-		return objs, NewServerError(err.Error())
+		return NewServerError(err.Error())
 	}
 	defer cursor.Close()
 	for cursor.HasMore() {
-		obj := reflect.New(t).Interface()
+		obj := reflect.New(dest.Type().Elem()).Interface()
 		_, err := cursor.ReadDocument(ctx.Context, &obj)
 		if err != nil {
-			return objs, NewServerError(err.Error())
+			return NewServerError(err.Error())
 		}
-		objs = append(objs, obj)
+		dest.Set(reflect.Append(dest, reflect.ValueOf(obj).Elem()))
 	}
 
-	return objs, nil
+	return nil
 }
 
-func GetArangoObject(ctx *ServerContext, t reflect.Type, arangoKey string) (interface{}, Error) {
-	obj := reflect.New(t).Interface().(ArangoObject)
+func FindArangoObject(ctx *ServerContext, query string, bindVars BindVars, result interface{}) Error {
+	db := ctx.Arango.DB
 
-	col, err := ctx.Arango.CollectionFor(obj)
+	dest := reflect.Indirect(reflect.ValueOf(result))
+	cursor, err := db.Query(ctx.Context, query, bindVars)
 	if err != nil {
-		return nil, err
+		return NewServerError(err.Error())
+	}
+	defer cursor.Close()
+	if cursor.HasMore() {
+		obj := reflect.New(dest.Type()).Interface()
+		_, err := cursor.ReadDocument(ctx.Context, &obj)
+		if err != nil {
+			return NewServerError(err.Error())
+		}
+		dest.Set(reflect.ValueOf(obj).Elem())
 	}
 
-	if _, dberr := col.ReadDocument(ctx.Context, arangoKey, obj); dberr != nil {
-		return nil, NewNotFoundError(dberr.Error())
+	return nil
+}
+
+func LoadArangoObject(ctx *ServerContext, result interface{}, arangoKey string) Error {
+	if !IsArangoObject(reflect.TypeOf(result)) {
+		return NewServerError("This method requires a pointer to an ArangoObject as the result parameter")
+	}
+	if result == nil {
+		return NewServerError("Cannot retrieve data into a nil object")
+	}
+	col, err := ctx.Arango.CollectionFor(result.(ArangoObject))
+	if err != nil {
+		return err
 	}
 
-	return obj, nil
+	if _, dberr := col.ReadDocument(ctx.Context, arangoKey, result); dberr != nil {
+		return NewNotFoundError(dberr.Error())
+	}
+	return nil
 }

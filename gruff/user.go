@@ -187,21 +187,12 @@ func (u User) ValidateField(f string) Error {
 // Loader
 
 func (u *User) Load(ctx *ServerContext) Error {
-	db := ctx.Arango.DB
-
-	col, err := ctx.Arango.CollectionFor(u)
-	if err != nil {
-		return err
-	}
-
-	var query string
-	bindVars := make(BindVars)
+	var err Error
 	if u.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, u.ArangoKey(), u)
-		if dberr != nil {
-			return NewServerError(dberr.Error())
-		}
+		err = LoadArangoObject(ctx, u, u.ArangoKey())
 	} else {
+		var query string
+		bindVars := BindVars{}
 		if u.Username != "" {
 			bindVars["username"] = strings.ToLower(u.Username)
 			// TODO: unique index on lower(username)
@@ -213,21 +204,9 @@ func (u *User) Load(ctx *ServerContext) Error {
 		} else {
 			return NewBusinessError("There is no value available to load this User.")
 		}
-
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		if err != nil {
-			return NewServerError(err.Error())
-		}
-		defer cursor.Close()
-		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, u)
-			if err != nil {
-				return NewServerError(err.Error())
-			}
-		}
+		err = FindArangoObject(ctx, query, bindVars, u)
 	}
-
-	return nil
+	return err
 }
 
 func (u *User) LoadFull(ctx *ServerContext) Error {

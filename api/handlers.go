@@ -20,7 +20,7 @@ func List(c echo.Context) error {
 	params = params.Merge(GetListParametersFromRequest(c))
 
 	userID := ActiveUserID(c, ctx)
-	filters := map[string]interface{}{}
+	filters := gruff.BindVars{}
 	var query string
 	if userID != "" {
 		filters["creator"] = userID
@@ -29,8 +29,8 @@ func List(c echo.Context) error {
 		query = gruff.DefaultListQuery(item, params)
 	}
 
-	items, err := gruff.ListArangoObjects(ctx, ctx.Type, query, filters)
-	if err != nil {
+	items := []interface{}{}
+	if err := gruff.FindArangoObjects(ctx, query, filters, &items); err != nil {
 		return AddError(ctx, c, err)
 	}
 
@@ -152,11 +152,9 @@ func Get(c echo.Context) error {
 		}
 		result = loader
 	} else {
-		item, err := gruff.GetArangoObject(ctx, ctx.Type, id)
-		if err != nil {
+		if err := gruff.LoadArangoObject(ctx, result, id); err != nil {
 			return AddError(ctx, c, err)
 		}
-		result = item
 	}
 
 	if gruff.IsRestrictor(ctx.Type) {

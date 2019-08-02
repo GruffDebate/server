@@ -364,18 +364,9 @@ func (c Claim) ValidateField(f string) Error {
 // If QueryAt is a non-nil value, it will load the Claim active at that time (if any)
 // Otherwise, it will return the current active (undeleted) version.
 func (c *Claim) Load(ctx *ServerContext) Error {
-	db := ctx.Arango.DB
-
-	col, err := ctx.Arango.CollectionFor(c)
-	if err != nil {
-		return err
-	}
-
+	var err Error
 	if c.ArangoKey() != "" {
-		_, dberr := col.ReadDocument(ctx.Context, c.ArangoKey(), c)
-		if dberr != nil {
-			return NewServerError(dberr.Error())
-		}
+		err = LoadArangoObject(ctx, c, c.ArangoKey())
 	} else if c.ID != "" {
 		bindVars := BindVars{
 			"id": c.ID,
@@ -388,28 +379,20 @@ func (c *Claim) Load(ctx *ServerContext) Error {
                                        RETURN obj`,
 			c.CollectionName(),
 			c.DateFilter(bindVars))
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer cursor.Close()
-		if err != nil {
-			return NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			_, err := cursor.ReadDocument(ctx.Context, c)
-			if err != nil {
-				return NewServerError(err.Error())
-			}
-		}
+		err = FindArangoObject(ctx, query, bindVars, c)
 	} else {
-		return NewBusinessError("There is no key or id for this Claim.")
+		err = NewBusinessError("There is no key or id for this Claim.")
 	}
 
-	return nil
+	return err
 }
 
 func (c *Claim) LoadFull(ctx *ServerContext) Error {
+	queryAt := c.QueryAt
 	if err := c.Load(ctx); err != nil {
 		return err
 	}
+	c.QueryAt = queryAt
 
 	if c.MultiPremise {
 		premises, err := c.Premises(ctx)
@@ -462,7 +445,6 @@ func (c *Claim) LoadFull(ctx *ServerContext) Error {
 // Arguments
 
 func (c Claim) Arguments(ctx *ServerContext) ([]Argument, Error) {
-	db := ctx.Arango.DB
 	args := []Argument{}
 
 	bindVars := BindVars{
@@ -479,25 +461,11 @@ func (c Claim) Arguments(ctx *ServerContext) ([]Argument, Error) {
 		Argument{}.CollectionName(),
 		c.DateFilter(bindVars),
 	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
+	err := FindArangoObjects(ctx, query, bindVars, &args)
+	return args, err
 }
 
 func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, Error) {
-	db := ctx.Arango.DB
 	args := []Argument{}
 
 	bindVars := BindVars{
@@ -513,28 +481,13 @@ func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, Error)
 		Argument{}.CollectionName(),
 		c.DateFilter(bindVars),
 	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return args, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		arg := Argument{}
-		_, err := cursor.ReadDocument(ctx.Context, &arg)
-		if err != nil {
-			return args, NewServerError(err.Error())
-		}
-		args = append(args, arg)
-	}
-
-	return args, nil
+	err := FindArangoObjects(ctx, query, bindVars, &args)
+	return args, err
 }
 
 // TODO: this could most definitely be made more generic...
 func (c Claim) Inferences(ctx *ServerContext) ([]Inference, Error) {
-	db := ctx.Arango.DB
 	edges := []Inference{}
-
 	bindVars := BindVars{
 		"from": c.ArangoID(),
 	}
@@ -544,21 +497,8 @@ func (c Claim) Inferences(ctx *ServerContext) ([]Inference, Error) {
                                 RETURN obj`,
 		Inference{}.CollectionName(),
 		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := Inference{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 // Premises
@@ -752,7 +692,6 @@ func (c Claim) HasPremise(ctx *ServerContext, premiseArangoKey string) (bool, Er
 }
 
 func (c Claim) Premises(ctx *ServerContext) ([]Claim, Error) {
-	db := ctx.Arango.DB
 	premises := []Claim{}
 
 	if c.MultiPremise {
@@ -770,18 +709,8 @@ func (c Claim) Premises(ctx *ServerContext) ([]Claim, Error) {
 			Claim{}.CollectionName(),
 			c.DateFilter(bindVars),
 		)
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer CloseCursor(cursor)
-		if err != nil {
-			return premises, NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			claim := Claim{}
-			_, err := cursor.ReadDocument(ctx.Context, &claim)
-			if err != nil {
-				return premises, NewServerError(err.Error())
-			}
-			premises = append(premises, claim)
+		if err := FindArangoObjects(ctx, query, bindVars, &premises); err != nil {
+			return premises, err
 		}
 	}
 
@@ -870,7 +799,6 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 }
 
 func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, Error) {
-	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
 	bindVars := BindVars{
@@ -883,21 +811,8 @@ func (c Claim) PremiseEdges(ctx *ServerContext) ([]PremiseEdge, Error) {
                                 RETURN obj`,
 		PremiseEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := PremiseEdge{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, Error) {
@@ -929,7 +844,6 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, Error) {
 
 // TODO: Make generic
 func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
-	db := ctx.Arango.DB
 	edges := []PremiseEdge{}
 
 	bindVars := BindVars{
@@ -941,28 +855,14 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
                                 RETURN obj`,
 		PremiseEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := PremiseEdge{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 // Arguments that use this Claim
 
 // TODO: this could most definitely be made more generic...
 func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
-	db := ctx.Arango.DB
 	edges := []BaseClaimEdge{}
 
 	bindVars := BindVars{
@@ -974,21 +874,8 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
                                 RETURN obj`,
 		BaseClaimEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := BaseClaimEdge{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 // Contexts
@@ -1071,7 +958,6 @@ func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) Error
 }
 
 func (c Claim) Contexts(ctx *ServerContext) ([]Context, Error) {
-	db := ctx.Arango.DB
 	contexts := []Context{}
 
 	if c.MultiPremise {
@@ -1112,19 +998,8 @@ func (c Claim) Contexts(ctx *ServerContext) ([]Context, Error) {
 			Context{}.CollectionName(),
 			c.DateFilter(bindVars),
 		)
-
-		cursor, err := db.Query(ctx.Context, query, bindVars)
-		defer CloseCursor(cursor)
-		if err != nil {
-			return contexts, NewServerError(err.Error())
-		}
-		for cursor.HasMore() {
-			context := Context{}
-			_, err := cursor.ReadDocument(ctx.Context, &context)
-			if err != nil {
-				return contexts, NewServerError(err.Error())
-			}
-			contexts = append(contexts, context)
+		if err := FindArangoObjects(ctx, query, bindVars, &contexts); err != nil {
+			return contexts, err
 		}
 	}
 
@@ -1132,7 +1007,6 @@ func (c Claim) Contexts(ctx *ServerContext) ([]Context, Error) {
 }
 
 func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, Error) {
-	db := ctx.Arango.DB
 	edges := []ContextEdge{}
 
 	bindVars := BindVars{
@@ -1145,21 +1019,8 @@ func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, Error) {
                                 RETURN obj`,
 		ContextEdge{}.CollectionName(),
 		c.DateFilter(bindVars))
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edges, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		edge := ContextEdge{}
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edges, NewServerError(err.Error())
-		}
-		edges = append(edges, edge)
-	}
-
-	return edges, nil
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 // TODO: Create method should set default Truth to 0.5

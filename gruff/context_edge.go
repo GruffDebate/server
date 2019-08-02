@@ -43,8 +43,6 @@ func (c *ContextEdge) Delete(ctx *ServerContext) Error {
 // Business methods
 
 func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string) (ContextEdge, Error) {
-	db := ctx.Arango.DB
-
 	context := Context{}
 	context.Key = contextArangoKey
 	claim := Claim{}
@@ -63,17 +61,6 @@ func FindContextEdge(ctx *ServerContext, contextArangoKey, claimArangoKey string
                                       RETURN obj`,
 		ContextEdge{}.CollectionName(),
 	)
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
-	if err != nil {
-		return edge, NewServerError(err.Error())
-	}
-	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(ctx.Context, &edge)
-		if err != nil {
-			return edge, NewServerError(err.Error())
-		}
-	}
-
-	return edge, nil
+	err := FindArangoObject(ctx, query, bindVars, &edge)
+	return edge, err
 }
