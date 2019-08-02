@@ -14,6 +14,7 @@ spec:
   - host: rest.gruff.org
     http:
       paths:
-      - backend:
+      - path: /
+        backend:
           serviceName: server
-          servicePort: 8080
+          servicePort: 80

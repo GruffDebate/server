@@ -6,6 +6,7 @@ metadata:
   labels:
     app: server
 spec:
+  revisionHistoryLimit: 5
   replicas: 2
   selector:
     matchLabels:
@@ -29,4 +30,3 @@ spec:
               value: "ha2WF4qdHc"
           ports:
             - containerPort: 8080
-              name: http
