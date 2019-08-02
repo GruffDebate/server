@@ -8,10 +8,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - rest.gruff.org
+    - endpoint.gruff.org
     secretName: letsencrypt-prod
   rules:
-  - host: rest.gruff.org
+  - host: endpoint.gruff.org
     http:
       paths:
       - path: /
