@@ -29,6 +29,7 @@ func (vm *VersionedModel) PrepareForCreate(ctx *ServerContext) {
 	}
 	vm.CreatedAt = ctx.RequestTime()
 	vm.UpdatedAt = ctx.RequestTime()
+	vm.DeletedAt = nil
 	if vm.CreatedByID == "" {
 		vm.CreatedByID = u.ArangoID()
 	}

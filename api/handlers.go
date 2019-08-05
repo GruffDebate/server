@@ -70,26 +70,30 @@ func Update(c echo.Context) error {
 		return AddError(ctx, c, gruff.NewServerError("This item isn't compatible with this request"))
 	}
 
-	updates := map[string]interface{}{}
+	id := c.Param("id")
+	if id == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	}
+
+	item, err := loadItem(c, id)
+	if err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	obj := item.(gruff.ArangoObject)
+
+	updates := gruff.Updates{}
 	if err := c.Bind(&updates); err != nil {
 		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	var key string
-	var ok bool
-	if key, ok = updates["_key"].(string); !ok {
-		return AddError(ctx, c, gruff.NewBusinessError("Key: non zero value required;"))
+	if gruff.IsVersionedModel(ctx.Type) {
+		if err := validateKeyParameter(c, obj); err != nil {
+			return AddError(ctx, c, err)
+		}
 	}
 
-	item := reflect.New(ctx.Type).Interface()
-
-	// TODO check if end is null
-
-	if err := gruff.SetKey(item, key); err != nil {
-		return AddError(ctx, c, err)
-	}
-
-	err := item.(gruff.ArangoObject).Update(ctx, updates)
+	err = obj.Update(ctx, updates)
 	if err != nil {
 		return AddError(ctx, c, err)
 	}
@@ -132,29 +136,9 @@ func Get(c echo.Context) error {
 		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
-	var result interface{}
-	if gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
-		item := reflect.New(ctx.Type).Interface()
-		loader := item.(gruff.Loader)
-
-		if gruff.IsVersionedModel(ctx.Type) {
-			vm, err := gruff.GetVersionedModel(loader)
-			if err != nil {
-				return AddError(ctx, c, err)
-			}
-			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
-			vm.ID = id
-		}
-
-		err := loader.LoadFull(ctx)
-		if err != nil {
-			return AddError(ctx, c, err)
-		}
-		result = loader
-	} else {
-		if err := gruff.LoadArangoObject(ctx, result, id); err != nil {
-			return AddError(ctx, c, err)
-		}
+	result, err := loadItem(c, id)
+	if err != nil {
+		return AddError(ctx, c, err)
 	}
 
 	if gruff.IsRestrictor(ctx.Type) {
@@ -170,6 +154,54 @@ func Get(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+
+func loadItem(c echo.Context, id string) (interface{}, gruff.Error) {
+	ctx := ServerContext(c)
+	var result interface{}
+	if gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
+		item := reflect.New(ctx.Type).Interface()
+		loader := item.(gruff.Loader)
+
+		if gruff.IsVersionedModel(ctx.Type) {
+			vm, err := gruff.GetVersionedModel(loader)
+			if err != nil {
+				return result, err
+			}
+			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
+			vm.ID = id
+		}
+
+		err := loader.LoadFull(ctx)
+		if err != nil {
+			return result, err
+		}
+		result = loader
+	} else {
+		if err := gruff.LoadArangoObject(ctx, result, id); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func validateKeyParameter(c echo.Context, item gruff.ArangoObject) gruff.Error {
+	params := map[string]interface{}{}
+	if err := c.Bind(&params); err != nil {
+		return gruff.NewServerError(err.Error())
+	}
+
+	var key string
+	var ok bool
+	if key, ok = params["_key"].(string); !ok {
+		return gruff.NewBusinessError("Key: non zero value required;")
+	}
+
+	if item.ArangoKey() != key {
+		return gruff.NewBusinessError("The key does not match the value for the item you are changing. The item might have already been changed by someone else.")
+	}
+
+	return nil
 }
 
 // TODO: GetQueryDateFromRequest

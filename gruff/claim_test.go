@@ -113,6 +113,12 @@ func TestClaimAddPremise(t *testing.T) {
 	assert.NotEmpty(t, saved.UpdatedAt)
 	assert.Nil(t, saved.DeletedAt)
 
+	topClaim.DeletedAt = support.TimePtr(time.Now())
+	err = topClaim.AddPremise(CTX, &premiseClaim1)
+	assert.Error(t, err)
+	assert.Equal(t, "A claim that has already been deleted, or has a newer version, cannot be modified", err.Error())
+
+	topClaim.DeletedAt = nil
 	err = topClaim.AddPremise(CTX, &premiseClaim1)
 	assert.NoError(t, err)
 	saved = Claim{}
@@ -489,13 +495,27 @@ func TestClaimUpdateMP(t *testing.T) {
 		MultiPremise: false,
 	}
 	err = claim.AddPremise(CTX, &premiseClaim1)
+	assert.Error(t, err)
+	assert.Equal(t, "You must convert this claim to be a multi-premise claim before adding new premises", err.Error())
+
+	err = claim.ConvertToMultiPremise(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	autoPremises, err := claim.Premises(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(autoPremises))
+	autoPremise := autoPremises[0]
+
+	err = claim.AddPremise(CTX, &premiseClaim1)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
 	premiseClaim2 := Claim{
 		Title:        "Since it is I that am daring you, you therefore must not doubt",
 		Description:  "I am undoubtable",
-		MultiPremise: false,
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
 	}
 	err = claim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
@@ -553,11 +573,13 @@ func TestClaimUpdateMP(t *testing.T) {
 	// Next check edges, then version and recheck everything
 	premiseEdges, err := claim.PremiseEdges(CTX)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, 3, len(premiseEdges))
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].From)
 	assert.Equal(t, claim.ArangoID(), premiseEdges[1].From)
-	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
-	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[2].From)
+	assert.Equal(t, autoPremise.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[1].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[2].To)
 
 	inferences, err := claim.Inferences(CTX)
 	assert.NoError(t, err)
@@ -615,13 +637,13 @@ func TestClaimUpdateMP(t *testing.T) {
 	// Verify new edges were created
 	premiseEdges, err = claim.PremiseEdges(CTX)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, 3, len(premiseEdges))
 	assert.Equal(t, claim.ArangoID(), premiseEdges[0].From)
 	assert.Equal(t, claim.ArangoID(), premiseEdges[1].From)
-	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
-	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
-	assert.Nil(t, premiseEdges[0].DeletedAt)
-	assert.Nil(t, premiseEdges[1].DeletedAt)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[2].From)
+	assert.Equal(t, autoPremise.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[1].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[2].To)
 
 	inferences, err = claim.Inferences(CTX)
 	assert.NoError(t, err)
@@ -653,13 +675,16 @@ func TestClaimUpdateMP(t *testing.T) {
 	// Verify that the old edges were deleted
 	premiseEdges, err = origClaim.PremiseEdges(CTX)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(premiseEdges))
+	assert.Equal(t, 3, len(premiseEdges))
 	assert.Equal(t, origClaim.ArangoID(), premiseEdges[0].From)
 	assert.Equal(t, origClaim.ArangoID(), premiseEdges[1].From)
-	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[0].To)
-	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[1].To)
+	assert.Equal(t, origClaim.ArangoID(), premiseEdges[2].From)
+	assert.Equal(t, autoPremise.ArangoID(), premiseEdges[0].To)
+	assert.Equal(t, premiseClaim1.ArangoID(), premiseEdges[1].To)
+	assert.Equal(t, premiseClaim2.ArangoID(), premiseEdges[2].To)
 	assert.NotNil(t, premiseEdges[0].DeletedAt)
 	assert.NotNil(t, premiseEdges[1].DeletedAt)
+	assert.NotNil(t, premiseEdges[2].DeletedAt)
 
 	inferences, err = origClaim.Inferences(CTX)
 	assert.NoError(t, err)
@@ -697,20 +722,22 @@ func TestLoadClaimAtDate(t *testing.T) {
 		Note:        "This Claim is all about doubting. No links are going here.",
 		Image:       "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
 	}
-	claim.DeletedAt = support.TimePtr(time.Now().Add(-24 * time.Hour))
 
 	err := claim.Create(CTX)
 	assert.NoError(t, err)
-	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
+	patch := map[string]interface{}{
+		"start": time.Now().Add(-25 * time.Hour),
+		"end":   time.Now().Add(-24 * time.Hour),
+	}
 	col, _ := CTX.Arango.CollectionFor(&claim)
 	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
 
 	firstKey := claim.ArangoKey()
 
-	claim.DeletedAt = support.TimePtr(time.Now().Add(-1 * time.Hour))
 	err = claim.Create(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-24 * time.Hour)
+	patch["end"] = time.Now().Add(-1 * time.Hour)
 	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
 
 	secondKey := claim.ArangoKey()
@@ -719,6 +746,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 	err = claim.Create(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-1 * time.Hour)
+	delete(patch, "end")
 	col.UpdateDocument(CTX.Context, claim.ArangoKey(), patch)
 
 	thirdKey := claim.ArangoKey()
@@ -1534,6 +1562,15 @@ func TestClaimDeleteLoop(t *testing.T) {
 
 	// Next, delete the main claim
 	err = claim.Delete(CTX)
+	assert.Error(t, err)
+	assert.Equal(t, "You cannot delete a claim that is being used as a base claim for other arguments", err.Error())
+
+	// Delete the argument using it
+	err = argDC1.Delete(CTX)
+	assert.NoError(t, err)
+
+	// Now delete the claim
+	err = claim.Delete(CTX)
 	assert.NoError(t, err)
 
 	inferences, err := claim.Inferences(CTX)
@@ -1580,8 +1617,8 @@ func TestClaimAddPremiseLoop(t *testing.T) {
 		Question:     "Do you dare to doubt me?",
 		Note:         "This Claim is all about infinite premise loops",
 		Image:        "https://media.sanoma.fi/sites/default/files/styles/icon_lg/public/2018-03/Loop.png?itok=F630fzmT",
-		MultiPremise: false,
-		PremiseRule:  PREMISE_RULE_NONE,
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
 	}
 	err := claim.Create(CTX)
 	assert.NoError(t, err)
@@ -1599,7 +1636,8 @@ func TestClaimAddPremiseLoop(t *testing.T) {
 	premiseClaim2 := Claim{
 		Title:        "I'm also an innocente premise... at first...",
 		Description:  "I am undoubtable",
-		MultiPremise: false,
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
 	}
 	err = claim.AddPremise(CTX, &premiseClaim2)
 	assert.NoError(t, err)
@@ -1622,23 +1660,23 @@ func TestClaimAddPremiseLoop(t *testing.T) {
 	// Now try to create a loop and fail
 	err = claim.AddPremise(CTX, &claim)
 	assert.Error(t, err)
-	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\"", err.Error())
 
 	err = claim.AddPremise(CTX, &mpClaim)
 	assert.Error(t, err)
-	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\"", err.Error())
 
 	err = premiseClaim2.AddPremise(CTX, &claim)
 	assert.Error(t, err)
-	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".", err.Error())
+	assert.Equal(t, "A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\"", err.Error())
 
 	err = claim.AddPremise(CTX, &premiseClaim1)
 	assert.Error(t, err)
-	assert.Equal(t, "This claim has already been added as a premise.", err.Error())
+	assert.Equal(t, "This claim has already been added as a premise", err.Error())
 
 	err = mpClaim.AddPremise(CTX, &premiseClaim1)
 	assert.Error(t, err)
-	assert.Equal(t, "This claim has already been added as a premise.", err.Error())
+	assert.Equal(t, "This claim has already been added as a premise", err.Error())
 
 }
 
@@ -1693,6 +1731,7 @@ func TestClaimHasCycle(t *testing.T) {
 
 	err = arg.Delete(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 
 	has, err = claim.HasCycle(CTX)
 	assert.NoError(t, err)
@@ -1750,6 +1789,7 @@ func TestClaimHasCycle(t *testing.T) {
 
 	err = argd.Delete(CTX)
 	assert.NoError(t, err)
+	CTX.RequestAt = nil
 	has, err = claim.HasCycle(CTX)
 	assert.NoError(t, err)
 	assert.False(t, has)
@@ -1758,6 +1798,13 @@ func TestClaimHasCycle(t *testing.T) {
 	argcClaim.ID = argc.ClaimID
 	err = argcClaim.Load(CTX)
 	assert.NoError(t, err)
+	err = argcClaim.AddPremise(CTX, &claim)
+	assert.Error(t, err)
+	assert.Equal(t, "You must convert this claim to be a multi-premise claim before adding new premises", err.Error())
+
+	err = argcClaim.ConvertToMultiPremise(CTX)
+	assert.NoError(t, err)
+
 	err = argcClaim.AddPremise(CTX, &claim)
 	assert.NoError(t, err)
 
@@ -2106,7 +2153,7 @@ func TestClaimAddContext(t *testing.T) {
 	// Add to deleted Claim
 	err = claim4.AddContext(CTX, ctx1)
 	assert.Error(t, err)
-	assert.Equal(t, "A claim that has already been deleted, or has a newer version, cannot be modified.", err.Error())
+	assert.Equal(t, "A claim that has already been deleted, or has a newer version, cannot be modified", err.Error())
 }
 
 func TestClaimValidateForDelete(t *testing.T) {
@@ -2116,7 +2163,7 @@ func TestClaimValidateForDelete(t *testing.T) {
 	claim.DeletedAt = support.TimePtr(time.Now())
 	err := claim.ValidateForDelete()
 	assert.NotNil(t, err)
-	assert.Equal(t, "This claim has already been deleted or versioned.", err.Error())
+	assert.Equal(t, "This claim has already been deleted or versioned", err.Error())
 }
 
 func TestClaimUserCanDelete(t *testing.T) {
@@ -2221,4 +2268,256 @@ func TestClaimUserCanUpdate(t *testing.T) {
 	can, err = claim.UserCanUpdate(CTX, updates)
 	assert.Nil(t, err)
 	assert.True(t, can)
+}
+
+func TestClaimConvertToMultiPremise(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "I'm just a premise, yes I'm only a premise. But I hope to be a multi-premise.",
+		Description:  "ConvertToMultiPremise",
+		Image:        "https://thesaurus.plus/img/synonyms/125/break_into_pieces.png",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "I don't belong on a multi-premise",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "What, you think I do?",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	context := Context{
+		ShortName: "MPClaim Conversion",
+		Title:     "Multi-Premise Claim Conversion",
+		URL:       "https://en.wikipedia.org/wiki/Conversion",
+	}
+	err = context.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.AddContext(CTX, context)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	anotherClaim := Claim{
+		Title: "MPConversion other claim",
+	}
+	err = anotherClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argToAnotherClaim := Argument{
+		TargetClaimID: &anotherClaim.ID,
+		ClaimID:       claim.ID,
+		Pro:           false,
+	}
+	err = argToAnotherClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	mpClaim := Claim{
+		Title:        "I'm already an MPClaim. You wish you were!",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err = mpClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = mpClaim.AddPremise(CTX, &claim)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	startTime := time.Now()
+
+	// Check connections
+	premiseEdges, err := claim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(premiseEdges))
+
+	inferences, err := claim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, claim.ArangoID(), inferences[0].From)
+	assert.Equal(t, claim.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+
+	bces, err := claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	args, err := claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	premiseEdges, err = mpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+
+	ces, err := claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ces))
+	assert.Equal(t, context.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+
+	ctxs, err := claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ctxs))
+	assert.Equal(t, context.ArangoID(), ctxs[0].ArangoID())
+
+	// Convert to Multi-premise
+	err = claim.ConvertToMultiPremise(CTX)
+	assert.NoError(t, err)
+
+	premiseEdges, err = claim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+
+	premise := Claim{}
+	premise.Key = premiseEdges[0].To[7:]
+	err = premise.Load(CTX)
+	assert.NoError(t, err)
+
+	inferences, err = claim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(inferences))
+
+	arg1.Key = ""
+	arg1.Load(CTX)
+	arg2.Key = ""
+	arg2.Load(CTX)
+	inferences, err = premise.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, premise.ArangoID(), inferences[0].From)
+	assert.Equal(t, premise.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	args, err = claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(args))
+
+	args, err = premise.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	premiseEdges, err = mpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+
+	ces, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(ces))
+
+	ces, err = premise.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ces))
+	assert.Equal(t, context.ArangoID(), ces[0].From)
+	assert.Equal(t, premise.ArangoID(), ces[0].To)
+
+	// This method returns Contexts of the premises!
+	ctxs, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ctxs))
+	assert.Equal(t, context.ArangoID(), ctxs[0].ArangoID())
+
+	// TODO: actually, both should maintain contexts... for the purpose of search?
+	ctxs, err = premise.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ctxs))
+	assert.Equal(t, context.ArangoID(), ctxs[0].ArangoID())
+
+	err = premise.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premise.ProArgs))
+	assert.Equal(t, 1, len(premise.ConArgs))
+	assert.Equal(t, arg1.ArangoID(), premise.ProArgs[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), premise.ConArgs[0].ArangoID())
+
+	// Check past connections
+	claim.QueryAt = &startTime
+	claim.Load(CTX)
+	arg1.QueryAt = &startTime
+	arg1.Load(CTX)
+	arg2.QueryAt = &startTime
+	arg2.Load(CTX)
+	mpClaim.QueryAt = &startTime
+	mpClaim.Load(CTX)
+
+	premiseEdges, err = claim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(premiseEdges))
+
+	inferences, err = claim.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(inferences))
+	assert.Equal(t, claim.ArangoID(), inferences[0].From)
+	assert.Equal(t, claim.ArangoID(), inferences[1].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+	assert.Equal(t, arg2.ArangoID(), inferences[1].To)
+
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	args, err = claim.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+
+	premiseEdges, err = mpClaim.PremiseEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(premiseEdges))
+	assert.Equal(t, mpClaim.ArangoID(), premiseEdges[0].From)
+	assert.Equal(t, claim.ArangoID(), premiseEdges[0].To)
+
+	ces, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ces))
+	assert.Equal(t, context.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+
+	ctxs, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ctxs))
+	assert.Equal(t, context.ArangoID(), ctxs[0].ArangoID())
+
 }

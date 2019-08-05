@@ -91,15 +91,18 @@ func (c *Claim) Update(ctx *ServerContext, updates Updates) Error {
 }
 
 func (c *Claim) version(ctx *ServerContext) Error {
+	c.QueryAt = nil
 	oldVersion := *c
 
-	// This should delete all the old edges, too
-	if err := oldVersion.Delete(ctx); err != nil {
+	// This should delete all the old edges, too,
+	// except Inferences and BaseClaimEdges
+	if err := oldVersion.performDelete(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
 
-	if err := c.Create(ctx); err != nil {
+	// Don't use Create method, since it performs unnecessary checks
+	if err := CreateArangoObject(ctx, c); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -141,6 +144,10 @@ func (c *Claim) version(ctx *ServerContext) Error {
 			ctx.Rollback()
 			return err
 		}
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
 	}
 
 	// Base Claim edges
@@ -155,6 +162,10 @@ func (c *Claim) version(ctx *ServerContext) Error {
 			To:   c.ArangoID(),
 		}}
 		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err := edge.Delete(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -215,26 +226,15 @@ func (c *Claim) Delete(ctx *ServerContext) Error {
 		return NewPermissionError("You do not have permission to delete this item")
 	}
 
-	// Delete any edges to or from this Claim
-	// TODO: How to handle deleting a Claim that is used as a BaseClaim
-	// Note that Delete is also used when versioning
-
-	// Find all edges going to old ver, make copy to new ver
-	if c.MultiPremise {
-		premiseEdges, err := c.PremiseEdges(ctx)
-		if err != nil {
-			ctx.Rollback()
-			return err
-		}
-		for _, edge := range premiseEdges {
-			if err := edge.Delete(ctx); err != nil {
-				ctx.Rollback()
-				return err
-			}
-		}
+	bces, err := c.BaseClaimEdges(ctx)
+	if err != nil {
+		return err
+	}
+	if len(bces) > 0 {
+		return NewBusinessError("You cannot delete a claim that is being used as a base claim for other arguments")
 	}
 
-	// Arguments
+	// Arguments - only when really deleting the Claim, rather than versioning
 	// WARNING: could create an infinite loop of deletions
 	args, err := c.Arguments(ctx)
 	if err != nil {
@@ -258,6 +258,26 @@ func (c *Claim) Delete(ctx *ServerContext) Error {
 		if err := arg.Delete(ctx); err != nil {
 			ctx.Rollback()
 			return err
+		}
+	}
+
+	return c.performDelete(ctx)
+}
+
+// Execute the delete action without verifications
+func (c *Claim) performDelete(ctx *ServerContext) Error {
+	// Find all edges going to old ver, make copy to new ver
+	if c.MultiPremise {
+		premiseEdges, err := c.PremiseEdges(ctx)
+		if err != nil {
+			ctx.Rollback()
+			return err
+		}
+		for _, edge := range premiseEdges {
+			if err := edge.Delete(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
 		}
 	}
 
@@ -338,7 +358,7 @@ func (c Claim) ValidateForCreate() Error {
 
 func (c Claim) ValidateForUpdate(updates Updates) Error {
 	if c.DeletedAt != nil {
-		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified.")
+		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified")
 	}
 	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
 		return err
@@ -348,7 +368,7 @@ func (c Claim) ValidateForUpdate(updates Updates) Error {
 
 func (c Claim) ValidateForDelete() Error {
 	if c.DeletedAt != nil {
-		return NewBusinessError("This claim has already been deleted or versioned.")
+		return NewBusinessError("This claim has already been deleted or versioned")
 	}
 	return nil
 }
@@ -365,7 +385,7 @@ func (c Claim) ValidateField(f string) Error {
 // Otherwise, it will return the current active (undeleted) version.
 func (c *Claim) Load(ctx *ServerContext) Error {
 	var err Error
-	if c.ArangoKey() != "" {
+	if c.QueryAt == nil && c.ArangoKey() != "" {
 		err = LoadArangoObject(ctx, c, c.ArangoKey())
 	} else if c.ID != "" {
 		bindVars := BindVars{
@@ -381,7 +401,7 @@ func (c *Claim) Load(ctx *ServerContext) Error {
 			c.DateFilter(bindVars))
 		err = FindArangoObject(ctx, query, bindVars, c)
 	} else {
-		err = NewBusinessError("There is no key or id for this Claim.")
+		err = NewBusinessError("There is no key or id for this Claim")
 	}
 
 	return err
@@ -485,7 +505,6 @@ func (c Claim) ArgumentsBasedOnThisClaim(ctx *ServerContext) ([]Argument, Error)
 	return args, err
 }
 
-// TODO: this could most definitely be made more generic...
 func (c Claim) Inferences(ctx *ServerContext) ([]Inference, Error) {
 	edges := []Inference{}
 	bindVars := BindVars{
@@ -509,6 +528,12 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 		return NewServerError("Premise is nil")
 	}
 
+	// TODO: Test
+	if !c.MultiPremise {
+		ctx.Rollback()
+		return NewBusinessError("You must convert this claim to be a multi-premise claim before adding new premises")
+	}
+
 	c.QueryAt = nil
 	updates := Updates{}
 
@@ -517,7 +542,6 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 		return err
 	}
 
-	// TODO: Test
 	can, err := c.UserCanUpdate(ctx, updates)
 	if err != nil {
 		return err
@@ -529,7 +553,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	// Check for premise loops
 	if premise.ID == c.ID {
 		ctx.Rollback()
-		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
+		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\"")
 	}
 
 	hasPremise, err := premise.HasPremise(ctx, c.ArangoKey())
@@ -539,7 +563,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	}
 	if hasPremise {
 		ctx.Rollback()
-		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\".")
+		return NewBusinessError("A claim cannot be a premise of itself, nor one of its own premises. That's called \"Begging the Question\"")
 	}
 
 	hasPremise, err = c.HasPremise(ctx, premise.ArangoKey())
@@ -549,7 +573,7 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	}
 	if hasPremise {
 		ctx.Rollback()
-		return NewBusinessError("This claim has already been added as a premise.")
+		return NewBusinessError("This claim has already been added as a premise")
 	}
 
 	if premise.Key == "" {
@@ -557,21 +581,6 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 			ctx.Rollback()
 			return err
 		}
-	}
-
-	// TODO: move the arguments to the first premise
-	if !c.MultiPremise {
-		updates := Updates{
-			"mp":     true,
-			"mprule": PREMISE_RULE_ALL,
-		}
-
-		if err := c.Update(ctx, updates); err != nil {
-			ctx.Rollback()
-			return err
-		}
-		c.MultiPremise = true
-		c.PremiseRule = PREMISE_RULE_ALL
 	}
 
 	// TODO: locking...
@@ -596,13 +605,13 @@ func (c *Claim) AddPremise(ctx *ServerContext, premise *Claim) Error {
 	return nil
 }
 
+// TODO: Test
 func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) Error {
 	updates := Updates{}
 	if err := c.ValidateForUpdate(updates); err != nil {
 		return err
 	}
 
-	// TODO: Test
 	can, err := c.UserCanUpdate(ctx, updates)
 	if err != nil {
 		return err
@@ -612,7 +621,7 @@ func (c *Claim) RemovePremise(ctx *ServerContext, premiseId string) Error {
 	}
 
 	if !c.MultiPremise {
-		return NewBusinessError("You cannot remove a premise from a Claim that isn't multi-premise.")
+		return NewBusinessError("You cannot remove a premise from a Claim that isn't multi-premise")
 	}
 
 	premiseEdges, err := c.PremiseEdges(ctx)
@@ -760,7 +769,7 @@ func (c Claim) ReorderPremise(ctx *ServerContext, premise Claim, new int) ([]Cla
 	}
 
 	if old == 0 {
-		return premises, NewNotFoundError("The premise you are trying to reorder was not found.")
+		return premises, NewNotFoundError("The premise you are trying to reorder was not found")
 	}
 
 	min := support.MinInt(new, old)
@@ -861,7 +870,6 @@ func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
 
 // Arguments that use this Claim
 
-// TODO: this could most definitely be made more generic...
 func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
 	edges := []BaseClaimEdge{}
 
@@ -1021,6 +1029,86 @@ func (c Claim) ContextEdges(ctx *ServerContext) ([]ContextEdge, Error) {
 		c.DateFilter(bindVars))
 	err := FindArangoObjects(ctx, query, bindVars, &edges)
 	return edges, err
+}
+
+// Curation
+
+// TODO: Test
+func (c *Claim) ConvertToMultiPremise(ctx *ServerContext) Error {
+	if c.MultiPremise {
+		ctx.Rollback()
+		return NewBusinessError("This claim is already a multi-premise claim")
+	}
+	c.QueryAt = nil
+
+	updates := Updates{
+		"mp":     true,
+		"mprule": PREMISE_RULE_ALL,
+	}
+
+	// Make the current claim an MP claim (preserve the ID)
+	if err := c.Update(ctx, updates); err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if err := c.Load(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Create a new Claim with the old attributes as the first premise of this claim
+	premise := Claim{}
+	premise.Title = c.Title
+	premise.Negation = c.Negation
+	premise.Question = c.Question
+	premise.Description = c.Description
+	premise.Note = c.Note
+	premise.Image = c.Image
+	if err := premise.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	if err := c.AddPremise(ctx, &premise); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Move arguments to current MP Claim down to new premise
+	args, err := c.Arguments(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, arg := range args {
+		if err := arg.MoveTo(ctx, &premise, arg.Pro); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	// Move Contexts to current MP Claim down to new premise
+	contextEdges, err := c.ContextEdges(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range contextEdges {
+		newEdge := ContextEdge{Edge: Edge{
+			From: edge.From,
+			To:   premise.ArangoID(),
+		}}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	return nil
 }
 
 // TODO: Create method should set default Truth to 0.5

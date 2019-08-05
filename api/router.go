@@ -51,11 +51,11 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	private.GET("/users/claims", List)
 
 	public.GET("/arguments", List)
-	public.GET("/arguments/:id", GetArgument)
-	private.POST("/arguments", CreateArgument)
+	public.GET("/arguments/:id", Get)
+	private.POST("/arguments", Create)
 	private.PUT("/arguments/:id", Update)
 	private.DELETE("/arguments/:id", Delete)
-	//private.PUT("/arguments/:id/move/:newId/type/:type", MoveArgument)
+	private.PUT("/arguments/:id/move/:type/:targetId", MoveArgument)
 
 	//private.POST("/arguments/:id/strength", SetScore)
 	//private.PUT("/arguments/:id/strength", SetScore)
@@ -79,10 +79,11 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 
 	public.GET("/claims", ListClaims("new"))
 	public.GET("/claims/top", ListClaims("top"))
-	public.GET("/claims/:id", GetClaim)
+	public.GET("/claims/:id", Get)
 	private.POST("/claims", Create)
 	private.PUT("/claims/:id", Update)
 	private.DELETE("/claims/:id", Delete)
+	private.PUT("/claims/:id/convert", ConvertClaimToMultiPremise)
 	//private.POST("/claims/:id/truth", SetScore)
 	//private.PUT("/claims/:id/truth", SetScore)
 

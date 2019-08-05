@@ -22,6 +22,7 @@ func (m *Model) PrepareForCreate(ctx *ServerContext) {
 	m.Key = uuid.New().String()
 	m.CreatedAt = ctx.RequestTime()
 	m.UpdatedAt = ctx.RequestTime()
+	m.DeletedAt = nil
 	return
 }
 

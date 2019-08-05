@@ -7,110 +7,60 @@ import (
 	"github.com/labstack/echo"
 )
 
-func GetArgument(c echo.Context) error {
-	ctx := ServerContext(c)
-
-	id := c.Param("id")
-
-	// TODO: as of date
-	var err gruff.Error
-	argument := gruff.Argument{}
-	argument.ID = id
-	err = argument.Load(ctx)
-	if err != nil {
-		return AddError(ctx, c, err)
-	}
-
-	/*
-		db = db.Preload("Claim.Links")
-		db = db.Preload("Claim.Contexts")
-		db = db.Preload("Claim.Values")
-		db = db.Preload("Claim.Tags")
-		db = db.Preload("TargetClaim.Links")
-		db = db.Preload("TargetClaim.Contexts")
-		db = db.Preload("TargetClaim.Values")
-		db = db.Preload("TargetClaim.Tags")
-		db = db.Preload("TargetArgument.Claim")
-		err = db.Where("id = ?", id).First(&argument).Error
-		if err != nil {
-			return AddError(ctx, c, gruff.NewServerError(err.Error()))
-		}
-
-		pro := []gruff.Argument{}
-		db = ctx.Database
-		db = db.Preload("Claim")
-		db = db.Where("type = ?", gruff.ARGUMENT_FOR)
-		db = db.Where("target_argument_id = ?", id)
-		db = db.Scopes(gruff.OrderByBestArgument)
-		err = db.Find(&pro).Error
-		if err != nil {
-			return AddError(ctx, c, gruff.NewServerError(err.Error()))
-		}
-		argument.Pro = pro
-
-		con := []gruff.Argument{}
-		db = ctx.Database
-		db = db.Preload("Claim")
-		db = db.Where("type = ?", gruff.ARGUMENT_AGAINST)
-		db = db.Where("target_argument_id = ?", id)
-		db = db.Scopes(gruff.OrderByBestArgument)
-		err = db.Find(&con).Error
-		if err != nil {
-			return AddError(ctx, c, gruff.NewServerError(err.Error()))
-		}
-		argument.Con = con
-	*/
-
-	return c.JSON(http.StatusOK, argument)
-}
-
-func CreateArgument(c echo.Context) error {
-	ctx := ServerContext(c)
-
-	arg := gruff.Argument{Claim: &gruff.Claim{}}
-	if err := c.Bind(&arg); err != nil {
-		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
-	}
-
-	arg.CreatedByID = ctx.UserContext.ArangoID()
-
-	return c.JSON(http.StatusCreated, arg)
-}
-
-/*
 func MoveArgument(c echo.Context) error {
 	ctx := ServerContext(c)
 
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
+	id := c.Param("id")
+	if id == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
-	newID, err := uuid.Parse(c.Param("newId"))
-	if err != nil {
-		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
+	targetId := c.Param("targetId")
+	if targetId == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
-	t, err := strconv.Atoi(c.Param("type"))
-	if err != nil {
-		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
+	params := map[string]interface{}{}
+	if err := c.Bind(&params); err != nil {
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
-	objType, err := strconv.Atoi(c.Param("targetType"))
-	if err != nil {
-		return AddError(ctx, c, gruff.NewNotFoundError(err.Error()))
+	var pro, ok bool
+	if pro, ok = params["pro"].(bool); !ok {
+		return AddError(ctx, c, gruff.NewBusinessError("Pro: non zero value required;"))
 	}
 
 	arg := gruff.Argument{}
-	if err := db.Where("id = ?", id).First(&arg).Error; err != nil {
-		return AddError(ctx, c, gruff.NewServerError(err.Error()))
+	arg.ID = id
+	if err := arg.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
 	}
 
-	if err := (&arg).MoveTo(ServerContext(c), newID, t, objType); err != nil {
-		return AddError(ctx, c, gruff.NewServerError(err.Error()))
+	if err := validateKeyParameter(c, &arg); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	var target gruff.ArangoObject
+	if c.Param("type") == "claims" {
+		claim := gruff.Claim{}
+		claim.ID = targetId
+		if err := claim.Load(ctx); err != nil {
+			return AddError(ctx, c, err)
+		}
+		target = &claim
+	} else {
+		targ := gruff.Argument{}
+		targ.ID = targetId
+		if err := targ.Load(ctx); err != nil {
+			return AddError(ctx, c, err)
+		}
+		target = &targ
+	}
+
+	if err := arg.MoveTo(ctx, target, pro); err != nil {
+		return AddError(ctx, c, err)
 	}
 
 	ctx.Payload["results"] = arg
 	return c.JSON(http.StatusOK, ctx.Payload)
 }
-*/

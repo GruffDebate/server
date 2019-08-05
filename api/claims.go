@@ -7,23 +7,6 @@ import (
 	"github.com/labstack/echo"
 )
 
-func GetClaim(c echo.Context) error {
-	ctx := ServerContext(c)
-
-	id := c.Param("id")
-
-	// TODO: as of date
-	var err gruff.Error
-	claim := gruff.Claim{}
-	claim.ID = id
-	err = claim.Load(ctx)
-	if err != nil {
-		return AddError(ctx, c, err)
-	}
-
-	return c.JSON(http.StatusOK, claim)
-}
-
 func ListClaims(which string) func(c echo.Context) error {
 	return func(c echo.Context) error {
 		ctx := ServerContext(c)
@@ -68,8 +51,12 @@ func AddContext(c echo.Context) error {
 	id := c.Param("id")
 
 	claim := gruff.Claim{}
-	claim.Key = parentId
+	claim.ID = parentId
 	if err := claim.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := validateKeyParameter(c, &claim); err != nil {
 		return AddError(ctx, c, err)
 	}
 
@@ -92,12 +79,38 @@ func RemoveContext(c echo.Context) error {
 	id := c.Param("id")
 
 	claim := gruff.Claim{}
-	claim.Key = parentId
+	claim.ID = parentId
 	if err := claim.Load(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}
 
+	if err := validateKeyParameter(c, &claim); err != nil {
+		return AddError(ctx, c, err)
+	}
+
 	if err := claim.RemoveContext(ctx, id); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, claim)
+}
+
+func ConvertClaimToMultiPremise(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	id := c.Param("id")
+
+	claim := gruff.Claim{}
+	claim.ID = id
+	if err := claim.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := validateKeyParameter(c, &claim); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.ConvertToMultiPremise(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}
 

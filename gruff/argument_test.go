@@ -12,7 +12,7 @@ import (
 func TestArgumentValidateForCreate(t *testing.T) {
 	a := Argument{}
 
-	assert.Equal(t, "title: non zero value required;", a.ValidateForCreate().Error())
+	assert.Equal(t, "claimId: non zero value required;", a.ValidateForCreate().Error())
 
 	a.Title = "A"
 	assert.Equal(t, "title: A does not validate as length(3|1000);", a.ValidateForCreate().Error())
@@ -46,7 +46,7 @@ func TestArgumentValidateForUpdate(t *testing.T) {
 	a := Argument{}
 	updates := map[string]interface{}{}
 
-	assert.Equal(t, "title: non zero value required;", a.ValidateForUpdate(updates).Error())
+	assert.Equal(t, "claimId: non zero value required;", a.ValidateForUpdate(updates).Error())
 
 	updates["title"] = "A"
 	assert.Equal(t, "title: A does not validate as length(3|1000);", a.ValidateForUpdate(updates).Error())
@@ -363,28 +363,30 @@ func TestLoadArgumentAtDate(t *testing.T) {
 		Note:          "I'm not sure that there should be notes for this",
 		Pro:           true,
 	}
-	arg.DeletedAt = support.TimePtr(time.Now().Add(-24 * time.Hour))
 
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
-	patch := map[string]interface{}{"start": time.Now().Add(-25 * time.Hour)}
+	patch := Updates{
+		"start": time.Now().Add(-25 * time.Hour),
+		"end":   time.Now().Add(-24 * time.Hour),
+	}
 	col, _ := CTX.Arango.CollectionFor(&arg)
 	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
 
 	firstKey := arg.ArangoKey()
 
-	arg.DeletedAt = support.TimePtr(time.Now().Add(-1 * time.Hour))
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-24 * time.Hour)
+	patch["end"] = time.Now().Add(-1 * time.Hour)
 	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
 
 	secondKey := arg.ArangoKey()
 
-	arg.DeletedAt = nil
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-1 * time.Hour)
+	delete(patch, "end")
 	col.UpdateDocument(CTX.Context, arg.ArangoKey(), patch)
 
 	thirdKey := arg.ArangoKey()
@@ -396,7 +398,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 	assert.Nil(t, lookup.DeletedAt)
 	assert.Equal(t, thirdKey, lookup.ArangoKey())
 
-	lookup.CreatedAt = time.Now().Add(-1 * time.Minute)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-1 * time.Minute))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.Nil(t, lookup.DeletedAt)
@@ -405,7 +407,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = time.Now().Add(-2 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-2 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -414,7 +416,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = time.Now().Add(-25 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-25 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -424,14 +426,14 @@ func TestLoadArgumentAtDate(t *testing.T) {
 	// TODO: Throw a NotFoundError?
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = time.Now().Add(-48 * time.Hour)
+	lookup.QueryAt = support.TimePtr(time.Now().Add(-48 * time.Hour))
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, "", lookup.ArangoKey())
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = firstCreatedAt
+	lookup.QueryAt = &firstCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -439,7 +441,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = secondCreatedAt
+	lookup.QueryAt = &secondCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, lookup.DeletedAt)
@@ -447,7 +449,7 @@ func TestLoadArgumentAtDate(t *testing.T) {
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
-	lookup.CreatedAt = thirdCreatedAt
+	lookup.QueryAt = &thirdCreatedAt
 	err = lookup.Load(CTX)
 	assert.NoError(t, err)
 	assert.Nil(t, lookup.DeletedAt)
@@ -853,4 +855,471 @@ func TestArgumentUpdate(t *testing.T) {
 	assert.Equal(t, 2, len(args))
 	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
 	assert.Equal(t, arg2.ArangoID(), args[1].ArangoID())
+}
+
+func TestArgumentMoveTo(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	// TODO: can't move to MP Claim
+
+	claim := Claim{
+		Title: "This Claim is here for testing MoveTo for Arguments (what else?)",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	baseClaim := Claim{
+		Title: "How low can you go? MoveTo... what a Claim knows.",
+	}
+	err = baseClaim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg := Argument{
+		TargetClaimID: &claim.ID,
+		ClaimID:       baseClaim.ID,
+		Title:         "This is the argument everyone wants to Move",
+		Pro:           true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetArgumentID: &arg.ID,
+		Title:            "I'm an argument to an argument that gets moved",
+		Pro:              true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "I'm an argument that you can move to",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	argBC := Argument{
+		TargetClaimID: &baseClaim.ID,
+		Title:         "Move the Argument to me and you'll be sorry!",
+		Pro:           true,
+	}
+	err = argBC.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Next check starting edges
+	inferences, err := arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+
+	bce, err := arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err := arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, arg.ArangoID(), claim.ProArgs[0].ArangoID())
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+
+	// Move it to the same claim, no change expected
+	arangoKey := arg.Key
+	err = arg.MoveTo(CTX, &claim, arg.Pro)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+
+	inferences, err = arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err = arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, arg.ArangoID(), claim.ProArgs[0].ArangoID())
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+
+	// Move to the same claim, but change the polarity
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &claim, false)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEqual(t, arangoKey, arg.Key)
+	assert.False(t, arg.Pro)
+
+	inferences, err = arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err = arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 2, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+	assert.Equal(t, arg.ArangoID(), claim.ConArgs[1].ArangoID())
+
+	// Move to another claim
+	c2 := Claim{}
+	c2.ID = arg2.ClaimID
+	err = c2.Load(CTX)
+	assert.NoError(t, err)
+
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &c2, true)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEqual(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, c2.ID, *arg.TargetClaimID)
+
+	c2Time := time.Now()
+
+	inferences, err = arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, c2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err = arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+
+	err = c2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(c2.ProArgs))
+	assert.Equal(t, 0, len(c2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), c2.ProArgs[0].ArangoID())
+
+	// Move to an argument
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &arg2, false)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEqual(t, arangoKey, arg.Key)
+	assert.False(t, arg.Pro)
+	assert.Nil(t, arg.TargetClaimID)
+	assert.Equal(t, arg2.ID, *arg.TargetArgumentID)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	err = c2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(c2.ProArgs))
+	assert.Equal(t, 0, len(c2.ConArgs))
+
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(arg2.ProArgs))
+	assert.Equal(t, 1, len(arg2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), arg2.ConArgs[0].ArangoID())
+
+	// Swap polarity on the argument
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &arg2, true)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEqual(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, arg2.ID, *arg.TargetArgumentID)
+
+	arg2SwapTime := time.Now()
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), arg2.ProArgs[0].ArangoID())
+
+	// Try to move it to its own base claim
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &baseClaim, true)
+	assert.Error(t, err)
+	assert.Equal(t, "An argument cannot be moved to its own base claim", err.Error())
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, arg2.ID, *arg.TargetArgumentID)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), arg2.ProArgs[0].ArangoID())
+
+	// Try to move it to one of its own arguments
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &arg1, false)
+	assert.Error(t, err)
+	assert.Equal(t, "An argument cannot be moved to one of its own arguments", err.Error())
+	CTX.RequestAt = nil
+	arg.Key = ""
+	arg.DeletedAt = nil
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, arg2.ID, *arg.TargetArgumentID)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), arg2.ProArgs[0].ArangoID())
+
+	// Move it back to its original claim
+	arangoKey = arg.Key
+	err = arg.MoveTo(CTX, &claim, true)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	arg.Key = ""
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+	assert.NotEqual(t, arangoKey, arg.Key)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, claim.ID, *arg.TargetClaimID)
+	assert.Nil(t, arg.TargetArgumentID)
+
+	inferences, err = arg.Inferences(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(inferences))
+	assert.Equal(t, arg.ArangoID(), inferences[0].From)
+	assert.Equal(t, arg1.ArangoID(), inferences[0].To)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	args, err = arg.Arguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(args))
+	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, arg.ArangoID(), claim.ProArgs[0].ArangoID())
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+
+	// Load back to after swapping polarity on the argument
+	arg.QueryAt = &arg2SwapTime
+	err = arg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.True(t, arg.Pro)
+	assert.Nil(t, arg.TargetClaimID)
+	assert.Equal(t, arg2.ID, *arg.TargetArgumentID)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	arg2.QueryAt = &arg2SwapTime
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), arg2.ProArgs[0].ArangoID())
+
+	c2.QueryAt = &arg2SwapTime
+	err = c2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(c2.ProArgs))
+	assert.Equal(t, 0, len(c2.ConArgs))
+
+	claim.QueryAt = &arg2SwapTime
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
+
+	// Load back to after moving to c2
+	arg.QueryAt = &c2Time
+	err = arg.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.True(t, arg.Pro)
+	assert.Equal(t, c2.ID, *arg.TargetClaimID)
+	assert.Nil(t, arg.TargetArgumentID)
+
+	bce, err = arg.BaseClaimEdge(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), bce.From)
+	assert.Equal(t, baseClaim.ArangoID(), bce.To)
+
+	inf, err = arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, c2.ArangoID(), inf.From)
+	assert.Equal(t, arg.ArangoID(), inf.To)
+
+	arg2.QueryAt = &c2Time
+	err = arg2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(arg2.ProArgs))
+	assert.Equal(t, 0, len(arg2.ConArgs))
+
+	c2.QueryAt = &c2Time
+	err = c2.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(c2.ProArgs))
+	assert.Equal(t, 0, len(c2.ConArgs))
+	assert.Equal(t, arg.ArangoID(), c2.ProArgs[0].ArangoID())
+
+	claim.QueryAt = &c2Time
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
 }

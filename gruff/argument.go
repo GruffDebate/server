@@ -2,7 +2,6 @@ package gruff
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/jinzhu/gorm"
 )
@@ -57,7 +56,7 @@ type Argument struct {
 	TargetArgument   *Argument  `json:"targetArg,omitempty"`
 	ClaimID          string     `json:"claimId"`
 	Claim            *Claim     `json:"claim,omitempty"`
-	Title            string     `json:"title" valid:"length(3|1000),required"`
+	Title            string     `json:"title" valid:"length(3|1000)"`
 	Negation         string     `json:"negation"`
 	Question         string     `json:"question"`
 	Description      string     `json:"desc" valid:"length(3|4000)"`
@@ -192,8 +191,8 @@ func (a *Argument) Update(ctx *ServerContext, updates Updates) Error {
 func (a *Argument) version(ctx *ServerContext) Error {
 	oldVersion := *a
 
-	// This should delete all the old edges, too
-	if err := oldVersion.Delete(ctx); err != nil {
+	// Don't use the standard Delete method because it deletes arguments, too
+	if err := DeleteArangoObject(ctx, &oldVersion); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -204,6 +203,17 @@ func (a *Argument) version(ctx *ServerContext) Error {
 	}
 
 	// Find all edges going to old ver, make copy to new ver
+	// The Inference edge is created during the Create method
+	inference, err := oldVersion.Inference(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	if err := inference.Delete(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
 	// Arguments
 	inferences, err := oldVersion.Inferences(ctx)
 	if err != nil {
@@ -219,21 +229,10 @@ func (a *Argument) version(ctx *ServerContext) Error {
 			ctx.Rollback()
 			return err
 		}
-	}
-
-	// Inference edge
-	inference, err := oldVersion.Inference(ctx)
-	if err != nil {
-		ctx.Rollback()
-		return err
-	}
-	newInference := Inference{Edge: Edge{
-		From: inference.From,
-		To:   a.ArangoID(),
-	}}
-	if err := newInference.Create(ctx); err != nil {
-		ctx.Rollback()
-		return err
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
 	}
 
 	// Base Claim edge
@@ -243,15 +242,18 @@ func (a *Argument) version(ctx *ServerContext) Error {
 		return err
 	}
 	newBaseClaimEdge := BaseClaimEdge{Edge: Edge{
-		From: baseClaimEdge.From,
-		To:   a.ArangoID(),
+		To:   baseClaimEdge.To,
+		From: a.ArangoID(),
 	}}
 	if err := newBaseClaimEdge.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
+	if err := baseClaimEdge.Delete(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
 
-	// TODO: Contexts
 	// TODO: Links
 
 	return nil
@@ -380,20 +382,20 @@ func (a Argument) ValidateIDs() Error {
 
 func (a *Argument) Load(ctx *ServerContext) Error {
 	var err Error
-	if a.ArangoKey() != "" {
+	if a.QueryAt == nil && a.ArangoKey() != "" {
 		err = LoadArangoObject(ctx, a, a.ArangoKey())
 	} else if a.ID != "" {
-		var empty time.Time
-		var query string
 		bindVars := BindVars{
 			"id": a.ID,
 		}
-		if a.CreatedAt == empty {
-			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.end == null SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
-		} else {
-			bindVars["start"] = a.CreatedAt
-			query = fmt.Sprintf("FOR a IN %s FILTER a.id == @id AND a.start <= @start AND (a.end == null OR a.end > @start) SORT a.start DESC LIMIT 1 RETURN a", a.CollectionName())
-		}
+		query := fmt.Sprintf(`FOR obj IN %s 
+                                       FILTER obj.id == @id
+                                       %s
+                                       SORT obj.start DESC
+                                       LIMIT 1 
+                                       RETURN obj`,
+			a.CollectionName(),
+			a.DateFilter(bindVars))
 		err = FindArangoObject(ctx, query, bindVars, a)
 	} else {
 		err = NewBusinessError("There is no key or id for this Argument.")
@@ -536,6 +538,72 @@ func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, Error) {
 	return edge, err
 }
 
+// Curation
+
+// TODO: Test
+func (a *Argument) MoveTo(ctx *ServerContext, target ArangoObject, pro bool) Error {
+	// Create a new version with the new target id
+	updates := Updates{
+		"pro": pro,
+	}
+	if claim, ok := target.(*Claim); ok {
+		if claim.ID == a.ClaimID {
+			return NewBusinessError("An argument cannot be moved to its own base claim")
+		}
+		if a.TargetClaimID != nil &&
+			*a.TargetClaimID == claim.ID &&
+			a.Pro == pro {
+			// Ignore the request
+			return nil
+		}
+		updates["targetClaimId"] = claim.ID
+		if a.TargetArgumentID != nil {
+			updates["targetArgId"] = nil
+		}
+	} else if arg, ok := target.(*Argument); ok {
+		if arg.TargetArgumentID != nil && *arg.TargetArgumentID == a.ID {
+			return NewBusinessError("An argument cannot be moved to one of its own arguments")
+		}
+		if a.TargetArgumentID != nil &&
+			*a.TargetArgumentID == arg.ID &&
+			a.Pro == pro {
+			// Ignore the request
+			return nil
+		}
+		if a.TargetClaimID != nil {
+			updates["targetClaimId"] = nil
+		}
+		updates["targetArgId"] = arg.ID
+	} else {
+		ctx.Rollback()
+		return NewServerError("Target must be either a claim or another argument")
+	}
+
+	if err := a.Update(ctx, updates); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// Point the (new) inference to the new target
+	inference, err := a.Inference(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	updates = Updates{
+		"_from": target.ArangoID(),
+	}
+	if err := UpdateArangoObject(ctx, &inference, updates); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// TODO: Handle/invalidate scores
+	// TODO: re-evalute relevance of arguments
+
+	return nil
+}
+
 // TODO: Create method should set default Strength to 0.5
 // TODO: implement curator permissions
 
@@ -609,101 +677,6 @@ func (a Argument) UpdateAncestorRUs(ctx *ServerContext) {
 		}
 		arg.UpdateStrengthRU(ctx)
 	}
-}
-
-func (a *Argument) MoveTo(ctx *ServerContext, newId uuid.UUID, t, objType int) Error {
-	db := ctx.Database
-
-	oldArg := Argument{TargetClaimID: a.TargetClaimID, TargetArgumentID: a.TargetArgumentID, Type: a.Type}
-	oldTargetID := a.TargetArgumentID
-	oldTargetType := OBJECT_TYPE_ARGUMENT
-	if oldTargetID == nil {
-		oldTargetID = a.TargetClaimID
-		oldTargetType = OBJECT_TYPE_CLAIM
-	}
-
-	switch objType {
-	case OBJECT_TYPE_CLAIM:
-		newClaim := Claim{}
-		if err := db.Where("id = ?", newId).First(&newClaim).Error; err != nil {
-			return NewNotFoundError(err.Error())
-		}
-
-		newIdN := NullableUUID{newId}
-		a.TargetClaimID = &newIdN
-		a.TargetClaim = &newClaim
-		a.TargetArgumentID = nil
-
-	case OBJECT_TYPE_ARGUMENT:
-		newArg := Argument{}
-		if err := db.Where("id = ?", newId).First(&newArg).Error; err != nil {
-			return NewNotFoundError(err.Error())
-		}
-
-		newIdN := NullableUUID{newId}
-		a.TargetArgumentID = &newIdN
-		a.TargetArgument = &newArg
-		a.TargetClaimID = nil
-
-	default:
-		return NewNotFoundError(fmt.Sprintf("Type unknown: %d", t))
-	}
-	a.Type = t
-	if err := a.ValidateType(); err != nil {
-		return err
-	}
-
-	if err := db.Set("gorm:save_associations", false).Save(a).Error; err != nil {
-		return NewServerError(err.Error())
-	}
-
-	// TODO: Goroutine
-
-	// TODO: More intelligent way to update scores?
-
-	// Notify argument voters of move so they can vote again
-	ops := []ArgumentOpinion{}
-	if err := db.Where("argument_id = ?", a.ID).Find(&ops).Error; err != nil {
-		db.Rollback()
-		return NewServerError(err.Error())
-	}
-
-	for _, op := range ops {
-		NotifyArgumentMoved(ctx, op.UserID, a.ID, oldTargetID.UUID, oldTargetType)
-	}
-
-	// Notify sub argument voters of move so they can double-check their vote
-	uids := []uint64{}
-	rows, dberr := db.Model(ArgumentOpinion{}).
-		Select("DISTINCT argument_opinions.user_id").
-		Where("argument_id IN (SELECT id FROM arguments WHERE target_argument_id = ?)", a.ID).
-		Rows()
-	defer rows.Close()
-
-	if dberr == nil {
-		for rows.Next() {
-			var uid uint64
-			err := rows.Scan(&uid)
-			if err == nil {
-				uids = append(uids, uid)
-			}
-		}
-	}
-
-	for _, uid := range uids {
-		NotifyParentArgumentMoved(ctx, uid, a.ID, oldTargetID.UUID, oldTargetType)
-	}
-
-	// Clear opinions on the moved argument
-	if err := db.Exec("DELETE FROM argument_opinions WHERE argument_id = ?", a.ID).Error; err != nil {
-		db.Rollback()
-		return NewServerError(err.Error())
-	}
-
-	a.UpdateAncestorRUs(ctx)
-	oldArg.UpdateAncestorRUs(ctx)
-
-	return nil
 }
 
 func (a Argument) Score(ctx *ServerContext) float64 {
