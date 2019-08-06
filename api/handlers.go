@@ -180,10 +180,14 @@ func loadItem(c echo.Context, id string) (interface{}, gruff.Error) {
 	return result, nil
 }
 
-func validateKeyParameter(c echo.Context, item gruff.ArangoObject) gruff.Error {
+func validateKeyParameter(c echo.Context, item gruff.ArangoObject, paramses ...map[string]interface{}) gruff.Error {
 	params := map[string]interface{}{}
-	if err := c.Bind(&params); err != nil {
-		return gruff.NewServerError(err.Error())
+	if len(paramses) > 0 {
+		params = paramses[0]
+	} else {
+		if err := c.Bind(&params); err != nil {
+			return gruff.NewServerError(err.Error())
+		}
 	}
 
 	var key string

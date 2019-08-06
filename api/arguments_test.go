@@ -88,172 +88,110 @@ func TestGetArgument(t *testing.T) {
 	assert.JSONEq(t, string(expected), res.Body.String())
 }
 
-/*
-func TestGetArgumentProTruth(t *testing.T) {
+func TestMoveArgument(t *testing.T) {
 	setup()
 	defer teardown()
 
-	r := New(Token)
-
-	d1 := gruff.Claim{
-		Title:       "Claim",
-		Description: "This is a test Claim",
-		Truth:       0.001,
+	claim := gruff.Claim{
+		Title:       "This is the API Move Argument test claim",
+		Description: "Load all the things!",
+		Negation:    "Don't load all the things.",
+		Question:    "Load all the THINGS? Load ALL the things? LOAD all the things?",
+		Note:        "This Claim needs to be all loaded.",
+		Image:       "https://i.chzbgr.com/full/6434679808/h4ADBDEA5/",
 	}
-	d2 := gruff.Claim{
-		Title:       "Another Claim",
-		Description: "This is not the Claim you are looking for",
-		Truth:       1.000,
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	targetClaim := gruff.Claim{
+		Title: "I'm the original target of an API Move Argument",
 	}
-	d3 := gruff.Claim{Title: "Claim 3", Description: "Claim 3", Truth: 0.23094}
-	d4 := gruff.Claim{Title: "Claim 4", Description: "Claim 4", Truth: 0.23094}
-	d5 := gruff.Claim{Title: "Claim 5", Description: "Claim 5", Truth: 0.23094}
-	d6 := gruff.Claim{Title: "Claim 6", Description: "Claim 6", Truth: 0.23094}
-	d7 := gruff.Claim{Title: "Claim 7", Description: "Claim 7", Truth: 0.23094}
-	d8 := gruff.Claim{Title: "Claim 8", Description: "Claim 8", Truth: 0.23094}
-	d9 := gruff.Claim{Title: "Claim 9", Description: "Claim 9", Truth: 0.23094}
-	TESTDB.Create(&d1)
-	TESTDB.Create(&d2)
-	TESTDB.Create(&d3)
-	TESTDB.Create(&d4)
-	TESTDB.Create(&d5)
-	TESTDB.Create(&d6)
-	TESTDB.Create(&d7)
-	TESTDB.Create(&d8)
-	TESTDB.Create(&d9)
+	err = targetClaim.Create(CTX)
+	assert.NoError(t, err)
 
-	l1 := gruff.Link{Title: "A Link", Description: "What'd you expect?", Url: "http://site.com/page", ClaimID: d1.ID}
-	l2 := gruff.Link{Title: "Another Link", Description: "What'd you expect?", Url: "http://site2.com/page", ClaimID: d1.ID}
-	l3 := gruff.Link{Title: "An Irrelevant Link", Description: "What'd you expect?", Url: "http://site3.com/page", ClaimID: d2.ID}
-	l4 := gruff.Link{Title: "Link 4", Description: "Link 4", Url: "http://site4.com/page", ClaimID: d4.ID}
-	l5 := gruff.Link{Title: "Link 5", Description: "Link 5", Url: "http://site5.com/page", ClaimID: d5.ID}
-	l6 := gruff.Link{Title: "Link 6", Description: "Link 6", Url: "http://site6.com/page", ClaimID: d6.ID}
-	l7 := gruff.Link{Title: "Link 7", Description: "Link 7", Url: "http://site7.com/page", ClaimID: d7.ID}
-	l8 := gruff.Link{Title: "Link 8", Description: "Link 8", Url: "http://site8.com/page", ClaimID: d8.ID}
-	l9 := gruff.Link{Title: "Link 9", Description: "Link 9", Url: "http://site9.com/page", ClaimID: d9.ID}
-	TESTDB.Create(&l1)
-	TESTDB.Create(&l2)
-	TESTDB.Create(&l3)
-	TESTDB.Create(&l4)
-	TESTDB.Create(&l5)
-	TESTDB.Create(&l6)
-	TESTDB.Create(&l7)
-	TESTDB.Create(&l8)
-	TESTDB.Create(&l9)
+	targetArg := gruff.Argument{
+		TargetClaimID: &targetClaim.ID,
+		Title:         "I'm the final target of an API Move Argument",
+		Pro:           true,
+	}
+	err = targetArg.Create(CTX)
+	assert.NoError(t, err)
 
-	c1 := gruff.Context{Title: "Test", Description: "The claim in question is related to a test"}
-	c2 := gruff.Context{Title: "Valid", Description: "The claim in question is the one we want"}
-	c3 := gruff.Context{Title: "Invalid", Description: "We don't want this"}
-	TESTDB.Create(&c1)
-	TESTDB.Create(&c2)
-	TESTDB.Create(&c3)
+	arg := gruff.Argument{
+		Title:         "The API needs to Move an Argument",
+		Description:   "And that's me!",
+		TargetClaimID: &targetClaim.ID,
+		ClaimID:       claim.ID,
+		Pro:           true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
 
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c1.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c2.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c1.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d3.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d4.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d5.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d6.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d7.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d8.ID)
-	TESTDB.Exec("INSERT INTO claim_contexts (context_id, claim_id) VALUES (?, ?)", c3.ID, d9.ID)
+	arg1 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Move Arg All?",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
 
-	d3.Contexts = []gruff.Context{c3}
+	arg2 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "GET Arg Load ALL!",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
 
-	v1 := gruff.Value{Title: "Test", Description: "Testing is good"}
-	v2 := gruff.Value{Title: "Correctness", Description: "We want correct code and tests"}
-	v3 := gruff.Value{Title: "Completeness", Description: "The test suite should be complete enough to protect against all likely bugs"}
-	TESTDB.Create(&v1)
-	TESTDB.Create(&v2)
-	TESTDB.Create(&v3)
+	arg3 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Do it Move Arg Load ALL!",
+		Pro:           true,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
 
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v1.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v2.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v1.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d3.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d4.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d5.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d6.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d7.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d8.ID)
-	TESTDB.Exec("INSERT INTO claim_values (value_id, claim_id) VALUES (?, ?)", v3.ID, d9.ID)
+	context := gruff.Context{
+		ShortName: "Move Arg context",
+		Title:     "Move Arg context",
+		URL:       "https://en.wikipedia.org/wiki/Idealism",
+	}
+	err = context.Create(CTX)
+	assert.NoError(t, err)
 
-	d3.Values = []gruff.Value{v3}
+	err = claim.AddContext(CTX, context)
+	assert.NoError(t, err)
 
-	t1 := gruff.Tag{Title: "Test"}
-	t2 := gruff.Tag{Title: "Valid"}
-	t3 := gruff.Tag{Title: "Invalid"}
-	TESTDB.Create(&t1)
-	TESTDB.Create(&t2)
-	TESTDB.Create(&t3)
+	body := map[string]interface{}{
+		"_key": arg.ArangoKey(),
+		"pro":  false,
+	}
 
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t1.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t2.ID, d1.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t1.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d2.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d3.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d4.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d5.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d6.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d7.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d8.ID)
-	TESTDB.Exec("INSERT INTO claim_tags (tag_id, claim_id) VALUES (?, ?)", t3.ID, d9.ID)
-
-	d3.Tags = []gruff.Tag{t3}
-
-	d1IDNull := gruff.NullableUUID{d1.ID}
-	d2IDNull := gruff.NullableUUID{d2.ID}
-	a3 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 3", Strength: 0.0293}
-	a4 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d4.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 4", Strength: 0.9823}
-	a5 := gruff.Argument{TargetClaimID: &d1IDNull, ClaimID: d5.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 5", Strength: 0.100}
-	a6 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d6.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 6", Strength: 0.2398}
-	a7 := gruff.Argument{TargetClaimID: &d2IDNull, ClaimID: d7.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 7", Strength: 0.120}
-	TESTDB.Create(&a3)
-	TESTDB.Create(&a4)
-	TESTDB.Create(&a5)
-	TESTDB.Create(&a6)
-	TESTDB.Create(&a7)
-
-	a3IDNull := gruff.NullableUUID{a3.ID}
-	// a4IDNull := gruff.NullableUUID{a4.ID}
-	a8 := gruff.Argument{TargetArgumentID: &a3IDNull, ClaimID: d8.ID, Type: gruff.ARGUMENT_FOR, Title: "Argument 8", Strength: 0.9823}
-	a9 := gruff.Argument{TargetArgumentID: &a3IDNull, ClaimID: d9.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 9", Strength: 0.83}
-	// a10 := gruff.Argument{TargetClaimID: &a4IDNull, ClaimID: d3.ID, Type: gruff.ARGUMENT_AGAINST, Title: "Argument 10", Strength: 0.83}
-	TESTDB.Create(&a8)
-	TESTDB.Create(&a9)
-	// TESTDB.Create(&a10)
-
-	a3.Claim = &d3
-	a4.Claim = &d4
-	a5.Claim = &d5
-	a6.Claim = &d6
-	a7.Claim = &d7
-	a8.Claim = &d8
-	a9.Claim = &d9
-	// a10.Claim = &d3
-
-	db := TESTDB
-	db = db.Preload("Links")
-	db = db.Preload("Contexts")
-	db = db.Preload("Values")
-	db = db.Preload("Tags")
-	db.Where("id = ?", d1.ID).First(&d1)
-
-	a3.TargetClaim = &d1
-	a3.Pro = []gruff.Argument{a8}
-	a3.Con = []gruff.Argument{a9}
-
-	expectedResults, _ := json.Marshal(a3)
-
-	r.GET(fmt.Sprintf("/api/arguments/%s", a3.ID.String()))
+	r := New(tokenForTestUser(DEFAULT_USER))
+	r.PUT(fmt.Sprintf("/api/arguments/%s/move/arguments/%s", arg.ID, targetArg.ID))
+	r.SetBody(body)
 	res, _ := r.Run(Router())
-	assert.Equal(t, string(expectedResults), res.Body.String())
 	assert.Equal(t, http.StatusOK, res.Code)
+
+	// TODO: Make a Reload/ReloadFull method(s)
+	arg.Key = ""
+	err = arg.LoadFull(CTX)
+	assert.NoError(t, err)
+	expected, _ := json.Marshal(arg)
+	assert.JSONEq(t, string(expected), res.Body.String())
+
+	assert.Equal(t, targetArg.ID, *arg.TargetArgumentID)
+	assert.Nil(t, arg.TargetClaimID)
+	assert.Equal(t, claim.ID, arg.ClaimID)
+	assert.False(t, arg.Pro)
+
+	inference, err := arg.Inference(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, arg.ArangoID(), inference.To)
+	assert.Equal(t, targetArg.ArangoID(), inference.From)
 }
 
+/*
 func TestCreateArgumentForClaim(t *testing.T) {
 	setup()
 	defer teardown()

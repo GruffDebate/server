@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/GruffDebate/server/gruff"
@@ -22,7 +23,7 @@ func MoveArgument(c echo.Context) error {
 
 	params := map[string]interface{}{}
 	if err := c.Bind(&params); err != nil {
-		return AddError(ctx, c, gruff.NewServerError(err.Error()))
+		return AddError(ctx, c, gruff.NewServerError(fmt.Sprintf("Error reading request parameters: %s", err.Error())))
 	}
 
 	var pro, ok bool
@@ -36,7 +37,7 @@ func MoveArgument(c echo.Context) error {
 		return AddError(ctx, c, err)
 	}
 
-	if err := validateKeyParameter(c, &arg); err != nil {
+	if err := validateKeyParameter(c, &arg, params); err != nil {
 		return AddError(ctx, c, err)
 	}
 
@@ -61,6 +62,10 @@ func MoveArgument(c echo.Context) error {
 		return AddError(ctx, c, err)
 	}
 
-	ctx.Payload["results"] = arg
-	return c.JSON(http.StatusOK, ctx.Payload)
+	arg.Key = ""
+	if err := arg.LoadFull(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, arg)
 }
