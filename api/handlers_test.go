@@ -1,34 +1,53 @@
 package api
 
 import (
-	_ "errors"
+	"fmt"
+	"time"
 
 	"github.com/GruffDebate/server/gruff"
+	"github.com/GruffDebate/server/support"
 	arango "github.com/arangodb/go-driver"
-	"github.com/labstack/echo/middleware"
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
 var CTX *gruff.ServerContext
 var TEST_CLIENT arango.Client
 var TESTDB arango.Database
 var ROLE string = "user"
+var DEFAULT_USER gruff.User
 
 var TESTTOKEN string
 var READ_ONLY bool = false
 
 func init() {
+	CTX = &gruff.ServerContext{}
 	TEST_CLIENT, TESTDB = gruff.InitTestDB()
+	CTX.Arango.DB = TESTDB
+
+	user := gruff.User{
+		Name:            "API Big Billy Goat Gruff",
+		Username:        "APIBigBillyGoat",
+		Email:           "bbg@gruff.org",
+		Image:           "https://miro.medium.com/max/1400/1*h765MiOJBkf7fqPdrQDCPQ.jpeg",
+		Curator:         false,
+		Admin:           false,
+		URL:             "https://github.com/canonical-debate-lab/paper",
+		EmailVerifiedAt: support.TimePtr(time.Now()),
+	}
+	err := user.Create(CTX)
+	if err != nil {
+		fmt.Println("ERROR Creating test user:", err.Error())
+	}
+
+	DEFAULT_USER = user
+	CTX.UserContext = user
 }
 
 func setup() {
 	//TESTDB = INITDB.Begin()
-
-	if CTX == nil {
-		CTX = &gruff.ServerContext{}
-	}
-
 	CTX.Arango.DB = TESTDB
+	CTX.UserContext = DEFAULT_USER
 }
 
 func teardown() {
@@ -92,21 +111,20 @@ func (mc TestMiddlewareConfigurer) ConfigurePrivateApiMiddleware(root *echo.Echo
 // 			password := "password"
 // 			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-			
 // 			user := argon.User{}
 // 			dbFind := TESTDB.Unscoped().First(&user, 999)
 // 			if dbFind.RecordNotFound() {
 // 				u := gruff.User{
-					// 	Name:     name,
-					// 	Username: username,
-					// 	Email:    email,
-					// 	Password: "123456",
-					// }
-					// password := u.Password
-					// u.Password = ""
-					// u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+// 	Name:     name,
+// 	Username: username,
+// 	Email:    email,
+// 	Password: "123456",
+// }
+// password := u.Password
+// u.Password = ""
+// u.HashedPassword, _ = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-					// u.Create(CTX)
+// u.Create(CTX)
 // 			} else {
 // 				user.HashedPassword = hashedPassword
 // 				TESTDB.Unscoped().Save(&user)

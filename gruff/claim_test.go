@@ -1175,6 +1175,8 @@ func TestClaimLoadFull(t *testing.T) {
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
+	// TODO: Contexts
+
 	// Simple Load
 	err = claim.Load(CTX)
 	assert.NoError(t, err)
@@ -1859,6 +1861,16 @@ func TestClaimAddContext(t *testing.T) {
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
+	u := User{Username: "AddContextNoPermissions", Email: "noperms@addcontext.com"}
+	err = u.Create(CTX)
+	assert.NoError(t, err)
+
+	CTX.UserContext = u
+	err = claim.AddContext(CTX, ctx2)
+	assert.Error(t, err)
+	assert.Equal(t, "You do not have permission to modify this item", err.Error())
+
+	CTX.UserContext = DEFAULT_USER
 	err = claim.AddContext(CTX, ctx2)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
@@ -1885,6 +1897,12 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, ctx2.ArangoID(), contexts[2].ArangoID())
 
 	// Remove a Context
+	CTX.UserContext = u
+	err = claim.RemoveContext(CTX, ctx2.ArangoKey())
+	assert.Error(t, err)
+	assert.Equal(t, "You do not have permission to modify this item", err.Error())
+	CTX.UserContext = DEFAULT_USER
+
 	err = claim.RemoveContext(CTX, ctx2.ArangoKey())
 	assert.NoError(t, err)
 	CTX.RequestAt = nil

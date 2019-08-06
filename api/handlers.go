@@ -164,12 +164,7 @@ func loadItem(c echo.Context, id string) (interface{}, gruff.Error) {
 		loader := item.(gruff.Loader)
 
 		if gruff.IsVersionedModel(ctx.Type) {
-			vm, err := gruff.GetVersionedModel(loader)
-			if err != nil {
-				return result, err
-			}
-			// TODO: This is probably NOT going to change the original - this is probably just changing a copy :(
-			vm.ID = id
+			gruff.SetID(loader, id)
 		}
 
 		err := loader.LoadFull(ctx)

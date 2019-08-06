@@ -50,7 +50,6 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 
 	private.GET("/users/claims", List)
 
-	public.GET("/arguments", List)
 	public.GET("/arguments/:id", Get)
 	private.POST("/arguments", Create)
 	private.PUT("/arguments/:id", Update)

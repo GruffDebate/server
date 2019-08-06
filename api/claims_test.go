@@ -1,39 +1,23 @@
 package api
 
 import (
-	_ "encoding/json"
-	_ "fmt"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	_ "net/http"
 	"testing"
-	_ "testing"
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/stretchr/testify/assert"
 	_ "github.com/stretchr/testify/assert"
 )
 
-func createClaim() gruff.Claim {
-	claim := gruff.Claim{
-		Title:        "Let's create a new claim",
-		Description:  "Claims in general should be true or false",
-		Negation:     "Let's not...",
-		Question:     "Should we create a new Claim?",
-		Note:         "He who notes is a note taker",
-		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
-		MultiPremise: true,
-		PremiseRule:  gruff.PREMISE_RULE_ALL,
-	}
+func TestCreateClaim(t *testing.T) {
+	setup()
+	defer teardown()
 
-	claim.Create(CTX)
-
-	return claim
-}
-
-func createClaimByUser() gruff.Claim {
 	u := gruff.User{
 		Name:     "claim user",
-		Username: "claimguy",
+		Username: "APICreateClaimGuy",
 		Email:    "claimguy@gruff.org",
 		Password: "123456",
 	}
@@ -41,33 +25,7 @@ func createClaimByUser() gruff.Claim {
 	u.Create(CTX)
 
 	claim := gruff.Claim{
-		Title:        "Let's create a new claim",
-		Description:  "Claims in general should be true or false",
-		Negation:     "Let's not...",
-		Question:     "Should we create a new Claim?",
-		Note:         "He who notes is a note taker",
-		Image:        "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
-		MultiPremise: true,
-		PremiseRule:  gruff.PREMISE_RULE_ALL,
-	}
-	CTX.UserContext.Key = u.ArangoID()
-
-	claim.Create(CTX)
-	return claim
-}
-
-func seedClaimByUser() (gruff.User, gruff.Claim) {
-	u := gruff.User{
-		Name:     "claim user",
-		Username: "claimguy",
-		Email:    "claimguy@gruff.org",
-		Password: "123456",
-	}
-
-	u.Create(CTX)
-
-	claim := gruff.Claim{
-		Title:        "Let's create a new claim",
+		Title:        "API CreateClaim Let's create a new claim",
 		Description:  "Claims in general should be true or false",
 		Negation:     "Let's not...",
 		Question:     "Should we create a new Claim?",
@@ -79,21 +37,75 @@ func seedClaimByUser() (gruff.User, gruff.Claim) {
 	CTX.UserContext.Key = u.ArangoID()
 
 	claim.VersionedModel.CreatedByID = u.ArangoID()
-	return u, claim
+
+	r := New(tokenForTestUser(u))
+
+	r.POST("/api/claims")
+	r.SetBody(claim)
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusCreated, res.Code)
 }
 
-func TestCreateClaim(t *testing.T) {
+func TestGetClaim(t *testing.T) {
 	setup()
 	defer teardown()
 
-	u1, c1 := seedClaimByUser()
+	claim := gruff.Claim{
+		Title:       "This is the API Get Claim test claim",
+		Description: "Load all the things!",
+		Negation:    "Don't load all the things.",
+		Question:    "Load all the THINGS? Load ALL the things? LOAD all the things?",
+		Note:        "This Claim needs to be all loaded.",
+		Image:       "https://i.chzbgr.com/full/6434679808/h4ADBDEA5/",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
 
-	r := New(tokenForTestUser(u1))
+	arg1 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Get Claim All?",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
 
-	r.POST("/api/claims")
-	r.SetBody(c1)
+	arg2 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "GET Claim Load ALL!",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+
+	arg3 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Do it Get Claim Load ALL!",
+		Pro:           true,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+
+	context := gruff.Context{
+		ShortName: "Get Claim context",
+		Title:     "Get Claim context",
+		URL:       "https://en.wikipedia.org/wiki/Claimed",
+	}
+	err = context.Create(CTX)
+	assert.NoError(t, err)
+
+	err = claim.AddContext(CTX, context)
+	assert.NoError(t, err)
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+
+	expected, _ := json.Marshal(claim)
+
+	r := New(tokenForTestUser(DEFAULT_USER))
+	r.GET(fmt.Sprintf("/api/claims/%s", claim.ID))
 	res, _ := r.Run(Router())
-	assert.Equal(t, http.StatusCreated, res.Code)
+	assert.Equal(t, http.StatusOK, res.Code)
+	assert.JSONEq(t, string(expected), res.Body.String())
 }
 
 /*

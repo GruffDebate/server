@@ -65,17 +65,41 @@ func (vm VersionedModel) DateFilter(bindVars map[string]interface{}) string {
 }
 
 func IsVersionedModel(t reflect.Type) bool {
+	if t.Kind() != reflect.Struct {
+		return false
+	}
 	_, is := t.FieldByName("VersionedModel")
 	return is
 }
 
 func GetVersionedModel(item interface{}) (VersionedModel, Error) {
-	if !IsVersionedModel(reflect.TypeOf(item)) {
+	t := reflect.TypeOf(item)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if !IsVersionedModel(t) {
 		return VersionedModel{}, NewServerError("Item is not a VersionedModel")
 	}
 
-	id := reflect.ValueOf(item).FieldByName("VersionedModel").Interface().(VersionedModel)
+	id := reflect.Indirect(reflect.ValueOf(item)).FieldByName("VersionedModel").Interface().(VersionedModel)
 	return id, nil
+}
+
+func SetID(item interface{}, id string) Error {
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return NewServerError("Cannot set value on nil item")
+		}
+		v = reflect.ValueOf(item).Elem()
+	}
+	f := v.FieldByName("ID")
+	if f.Type().Kind() == reflect.Ptr {
+		f.Set(reflect.ValueOf(&id))
+	} else {
+		f.Set(reflect.ValueOf(id))
+	}
+	return nil
 }
 
 type Versioner interface {

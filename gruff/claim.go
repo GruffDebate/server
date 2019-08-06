@@ -895,7 +895,6 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 		return err
 	}
 
-	// TODO: Test
 	can, err := c.UserCanUpdate(ctx, updates)
 	if err != nil {
 		return err
@@ -905,8 +904,6 @@ func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 	}
 
 	if c.MultiPremise {
-		// TODO: get Contexts for MP Claim should sum up the ctxs for all the subclaims?
-		// TODO: Changing Claim to MP Claim should do what to the existing contexts?
 		ctx.Rollback()
 		return NewBusinessError("Multi-premise claims inherit the union of contexts from all their premises")
 	}
@@ -942,7 +939,6 @@ func (c *Claim) RemoveContext(ctx *ServerContext, contextArangoKey string) Error
 		return err
 	}
 
-	// TODO: Test
 	can, err := c.UserCanUpdate(ctx, updates)
 	if err != nil {
 		return err

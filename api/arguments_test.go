@@ -1,71 +1,91 @@
 package api
 
 import (
-	_ "encoding/json"
-	_ "fmt"
-	_ "net/http"
-	_ "testing"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"testing"
 
 	"github.com/GruffDebate/server/gruff"
-	_ "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
-func createArgument(targetClaimID, targetArgID, baseClaimID *string) gruff.Argument {
+func TestGetArgument(t *testing.T) {
+	setup()
+	defer teardown()
+
+	claim := gruff.Claim{
+		Title:       "This is the API Get Argument test claim",
+		Description: "Load all the things!",
+		Negation:    "Don't load all the things.",
+		Question:    "Load all the THINGS? Load ALL the things? LOAD all the things?",
+		Note:        "This Claim needs to be all loaded.",
+		Image:       "https://i.chzbgr.com/full/6434679808/h4ADBDEA5/",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	targetClaim := gruff.Claim{
+		Title: "I'm the target of an API Get Argument",
+	}
+	err = targetClaim.Create(CTX)
+	assert.NoError(t, err)
+
 	arg := gruff.Argument{
-		TargetClaimID:    targetClaimID,
-		TargetArgumentID: targetArgID,
-		Title:            "Let's create a new argument",
-		Description:      "Arguments are all about connecting things",
-		Negation:         "Lettuce not...",
-		Question:         "Should we create a new Argument?",
-		Note:             "I'm not sure that there should be notes for this",
-		Pro:              true,
+		Title:         "The API needs to Get an Argument",
+		Description:   "And that's me!",
+		TargetClaimID: &targetClaim.ID,
+		ClaimID:       claim.ID,
+		Pro:           true,
 	}
-	if baseClaimID != nil {
-		arg.ClaimID = *baseClaimID
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+
+	arg1 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Get Arg All?",
+		Pro:           true,
 	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
 
-	arg.Create(CTX)
+	arg2 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "GET Arg Load ALL!",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
 
-	return arg
-}
+	arg3 := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Do it Get Arg Load ALL!",
+		Pro:           true,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
 
-/*
-func TestListArguments(t *testing.T) {
-	setup()
-	defer teardown()
+	context := gruff.Context{
+		ShortName: "Get Arg context",
+		Title:     "Get Arg context",
+		URL:       "https://en.wikipedia.org/wiki/Idealism",
+	}
+	err = context.Create(CTX)
+	assert.NoError(t, err)
 
-	r := New(Token)
+	err = claim.AddContext(CTX, context)
+	assert.NoError(t, err)
 
-	c1 := createClaim()
-	c2 := createClaim()
+	err = arg.LoadFull(CTX)
+	assert.NoError(t, err)
 
-	a1 := createArgument(&c1.ID, nil, nil)
-	a2 := createArgument(&c2.ID, nil, nil)
+	expected, _ := json.Marshal(arg)
 
-	expectedResults, _ := json.Marshal([]gruff.Argument{a1, a2})
-
-	r.GET("/api/arguments")
-	res, _ := r.Run(Router())
-	assert.Equal(t, string(expectedResults), res.Body.String())
-	assert.Equal(t, http.StatusOK, res.Code)
-}
-
-func TestListArgumentsPagination(t *testing.T) {
-	setup()
-	defer teardown()
-
-	r := New(Token)
-
-	c1 := createClaim()
-	c2 := createClaim()
-
-	createArgument(&c1.ID, nil, nil)
-	createArgument(&c2.ID, nil, nil)
-
-	r.GET("/api/arguments?start=0&limit=25")
+	r := New(tokenForTestUser(DEFAULT_USER))
+	r.GET(fmt.Sprintf("/api/arguments/%s", arg.ID))
 	res, _ := r.Run(Router())
 	assert.Equal(t, http.StatusOK, res.Code)
+	assert.JSONEq(t, string(expected), res.Body.String())
 }
 
 /*
