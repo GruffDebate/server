@@ -62,7 +62,6 @@ func MoveArgument(c echo.Context) error {
 		return AddError(ctx, c, err)
 	}
 
-	arg.Key = ""
 	if err := arg.LoadFull(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}

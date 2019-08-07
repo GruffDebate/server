@@ -385,9 +385,7 @@ func (c Claim) ValidateField(f string) Error {
 // Otherwise, it will return the current active (undeleted) version.
 func (c *Claim) Load(ctx *ServerContext) Error {
 	var err Error
-	if c.QueryAt == nil && c.ArangoKey() != "" {
-		err = LoadArangoObject(ctx, c, c.ArangoKey())
-	} else if c.ID != "" {
+	if c.ID != "" {
 		bindVars := BindVars{
 			"id": c.ID,
 		}
@@ -400,6 +398,8 @@ func (c *Claim) Load(ctx *ServerContext) Error {
 			c.CollectionName(),
 			c.DateFilter(bindVars))
 		err = FindArangoObject(ctx, query, bindVars, c)
+	} else if c.ArangoKey() != "" {
+		err = LoadArangoObject(ctx, c, c.ArangoKey())
 	} else {
 		err = NewBusinessError("There is no key or id for this Claim")
 	}

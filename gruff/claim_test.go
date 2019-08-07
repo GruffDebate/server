@@ -1,6 +1,7 @@
 package gruff
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -191,8 +192,8 @@ func TestClaimAddPremise(t *testing.T) {
 
 func TestClaimArangoID(t *testing.T) {
 	claim := Claim{}
-	claim.Key = "somethingpredictable"
-	assert.Equal(t, "claims/somethingpredictable", claim.ArangoID())
+	claim.Key = fmt.Sprintf("thisusessprintfjustsofmtisalwaysimported")
+	assert.Equal(t, "claims/thisusessprintfjustsofmtisalwaysimported", claim.ArangoID())
 }
 
 func TestClaimLoadByID(t *testing.T) {
@@ -734,7 +735,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	firstKey := claim.ArangoKey()
 
-	err = claim.Create(CTX)
+	err = claim.version(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-24 * time.Hour)
 	patch["end"] = time.Now().Add(-1 * time.Hour)
@@ -743,7 +744,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 	secondKey := claim.ArangoKey()
 
 	claim.DeletedAt = nil
-	err = claim.Create(CTX)
+	err = claim.version(CTX)
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-1 * time.Hour)
 	delete(patch, "end")
@@ -785,13 +786,12 @@ func TestLoadClaimAtDate(t *testing.T) {
 	assert.Equal(t, firstKey, lookup.ArangoKey())
 	firstCreatedAt := lookup.CreatedAt
 
-	// TODO: Throw a NotFoundError?
 	lookup = Claim{}
 	lookup.ID = claim.ID
 	lookup.QueryAt = support.TimePtr(time.Now().Add(-48 * time.Hour))
 	err = lookup.Load(CTX)
-	assert.NoError(t, err)
-	assert.Equal(t, "", lookup.ArangoKey())
+	assert.Error(t, err)
+	assert.Equal(t, "not found", err.Error())
 
 	lookup = Claim{}
 	lookup.ID = claim.ID
@@ -1228,6 +1228,9 @@ func TestClaimLoadFull(t *testing.T) {
 	assert.Equal(t, arg2, claim.ConArgs[0])
 
 	// Previous points in time
+	arg1.Claim = &carg1
+	arg2.Claim = &carg2
+	arg3.Claim = &carg3
 	claim.QueryAt = &arg1arg.CreatedAt
 	err = claim.LoadFull(CTX)
 	assert.NoError(t, err)
@@ -1449,7 +1452,18 @@ func TestClaimLoadFullMP(t *testing.T) {
 	assert.Equal(t, premiseClaim1, claim.PremiseClaims[0])
 
 	// Previous points in time
+	premiseClaim1.QueryAt = &arg1arg.CreatedAt
+	premiseClaim1.Load(CTX)
+	premiseClaim2.QueryAt = &arg1arg.CreatedAt
+	premiseClaim2.Load(CTX)
+	argPC2.QueryAt = &arg1arg.CreatedAt
+	argPC2.Load(CTX)
+	argPC11.Claim = &cargPC11
+	argPC12.Claim = &cargPC12
+	argPC13.Claim = &cargPC13
+	argPC2.Claim = &cargPC2
 	premiseClaim1.ProArgs = []Argument{argPC11, argPC13}
+	premiseClaim1.ConArgs = []Argument{argPC12}
 	premiseClaim2.ConArgs = []Argument{argPC2}
 	claim.QueryAt = &arg1arg.CreatedAt
 	err = claim.LoadFull(CTX)
@@ -1595,6 +1609,7 @@ func TestClaimDeleteLoop(t *testing.T) {
 	assert.Equal(t, arg1.ArangoID(), args[0].ArangoID())
 	assert.NotNil(t, args[0].DeletedAt)
 
+	arg1arg.QueryAt = support.TimePtr(claim.DeletedAt.Add(-1 * time.Millisecond))
 	err = arg1arg.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotNil(t, arg1arg.DeletedAt)
@@ -2002,7 +2017,6 @@ func TestClaimAddContext(t *testing.T) {
 	assert.Equal(t, "Multi-premise claims inherit the union of contexts from all their premises", err.Error())
 
 	// Get Contexts from MP Claim
-	claim.Key = ""
 	claim.QueryAt = nil
 	err = claim.Load(CTX)
 	assert.NoError(t, err)
@@ -2424,9 +2438,7 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(inferences))
 
-	arg1.Key = ""
 	arg1.Load(CTX)
-	arg2.Key = ""
 	arg2.Load(CTX)
 	inferences, err = premise.Inferences(CTX)
 	assert.NoError(t, err)

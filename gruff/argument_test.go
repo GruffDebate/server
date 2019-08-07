@@ -1,6 +1,7 @@
 package gruff
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -86,7 +87,7 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 		Description: "Claims in general should be true or false",
 		Negation:    "Let's not...",
 		Question:    "Should we create a new Claim?",
-		Note:        "He who notes is a note taker",
+		Note:        fmt.Sprintf("A Sprintf Note just to import fmt"),
 		Image:       "https://slideplayer.com/slide/4862164/15/images/9/7.3+Creating+Claims+7-9.+The+Create+Claims+button+in+the+Claim+Management+dialog+box+opens+the+Create+Claims+dialog+box..jpg",
 	}
 	err := claim.Create(CTX)
@@ -428,8 +429,8 @@ func TestLoadArgumentAtDate(t *testing.T) {
 	lookup.ID = arg.ID
 	lookup.QueryAt = support.TimePtr(time.Now().Add(-48 * time.Hour))
 	err = lookup.Load(CTX)
-	assert.NoError(t, err)
-	assert.Equal(t, "", lookup.ArangoKey())
+	assert.Error(t, err)
+	assert.Equal(t, "not found", err.Error())
 
 	lookup = Argument{}
 	lookup.ID = arg.ID
@@ -642,6 +643,12 @@ func TestArgumentLoadFull(t *testing.T) {
 	assert.Equal(t, theArgArg3, theArg.ConArgs[0])
 
 	// Previous points in time
+	arg1.Claim = &carg1
+	arg2.Claim = &carg2
+	arg3.Claim = &carg3
+	theArgArg1.Claim = &ctaa1
+	theArgArg2.Claim = &ctaa2
+	theArgArg3.Claim = &ctaa3
 	claim.ProArgs = []Argument{arg1, arg3}
 	claim.ConArgs = []Argument{arg2}
 	theArg.QueryAt = &theArgArg3BaseArg.CreatedAt
@@ -660,12 +667,8 @@ func TestArgumentLoadFull(t *testing.T) {
 	claim.ConArgs = nil
 	theArg.QueryAt = &arg1.CreatedAt
 	err = theArg.LoadFull(CTX)
-	assert.NoError(t, err)
-	assert.Nil(t, theArg.DeletedAt)
-	assert.Equal(t, "This is the Argument for LoadFull", theArg.Title)
-	assert.Equal(t, claim, *theArg.Claim)
-	assert.Equal(t, 0, len(theArg.ProArgs))
-	assert.Equal(t, 0, len(theArg.ConArgs))
+	assert.Error(t, err)
+	assert.Equal(t, "not found", err.Error())
 
 	claim.ProArgs = []Argument{arg1, arg3}
 	claim.ConArgs = []Argument{arg2}
@@ -948,7 +951,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &claim, arg.Pro)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, arangoKey, arg.Key)
@@ -987,7 +989,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &claim, false)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1032,7 +1033,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &c2, true)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1080,7 +1080,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &arg2, false)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1115,7 +1114,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &arg2, true)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1147,7 +1145,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "An argument cannot be moved to its own base claim", err.Error())
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1177,7 +1174,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "An argument cannot be moved to one of its own arguments", err.Error())
 	CTX.RequestAt = nil
-	arg.Key = ""
 	arg.DeletedAt = nil
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
@@ -1206,7 +1202,6 @@ func TestArgumentMoveTo(t *testing.T) {
 	err = arg.MoveTo(CTX, &claim, true)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
-	arg.Key = ""
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
 	assert.NotEqual(t, arangoKey, arg.Key)

@@ -324,6 +324,8 @@ func FindArangoObject(ctx *ServerContext, query string, bindVars BindVars, resul
 			return NewServerError(err.Error())
 		}
 		dest.Set(reflect.ValueOf(obj).Elem())
+	} else {
+		return NewNotFoundError("not found")
 	}
 
 	return nil

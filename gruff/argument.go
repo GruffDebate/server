@@ -382,9 +382,7 @@ func (a Argument) ValidateIDs() Error {
 
 func (a *Argument) Load(ctx *ServerContext) Error {
 	var err Error
-	if a.QueryAt == nil && a.ArangoKey() != "" {
-		err = LoadArangoObject(ctx, a, a.ArangoKey())
-	} else if a.ID != "" {
+	if a.ID != "" {
 		bindVars := BindVars{
 			"id": a.ID,
 		}
@@ -397,6 +395,8 @@ func (a *Argument) Load(ctx *ServerContext) Error {
 			a.CollectionName(),
 			a.DateFilter(bindVars))
 		err = FindArangoObject(ctx, query, bindVars, a)
+	} else if a.ArangoKey() != "" {
+		err = LoadArangoObject(ctx, a, a.ArangoKey())
 	} else {
 		err = NewBusinessError("There is no key or id for this Argument.")
 	}
