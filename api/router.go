@@ -61,6 +61,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 
 	// TODO: Test all these
 	public.GET("/contexts", List)
+	// TODO: Should contexts be gotten using the short name instead of the id?
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
 	private.PUT("/contexts/:id", Update)
@@ -83,6 +84,8 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	private.PUT("/claims/:id", Update)
 	private.DELETE("/claims/:id", Delete)
 	private.PUT("/claims/:id/convert", ConvertClaimToMultiPremise)
+	private.POST("/claims/:parentId/premises/:id", AddPremise)
+	private.DELETE("/claims/:parentId/premises/:id", RemovePremise)
 	//private.POST("/claims/:id/truth", SetScore)
 	//private.PUT("/claims/:id/truth", SetScore)
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -67,7 +68,7 @@ func Update(c echo.Context) error {
 	ctx := ServerContext(c)
 
 	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
-		return AddError(ctx, c, gruff.NewServerError("This item isn't compatible with this request"))
+		return AddError(ctx, c, gruff.NewServerError(fmt.Sprintf("This item isn't compatible with this request")))
 	}
 
 	id := c.Param("id")
@@ -88,7 +89,7 @@ func Update(c echo.Context) error {
 	}
 
 	if gruff.IsVersionedModel(ctx.Type) {
-		if err := validateKeyParameter(c, obj); err != nil {
+		if err := validateKeyParameter(c, obj, updates); err != nil {
 			return AddError(ctx, c, err)
 		}
 	}
@@ -96,6 +97,13 @@ func Update(c echo.Context) error {
 	err = obj.Update(ctx, updates)
 	if err != nil {
 		return AddError(ctx, c, err)
+	}
+
+	if gruff.IsLoader(reflect.PtrTo(ctx.Type)) {
+		loader := item.(gruff.Loader)
+		if err := loader.LoadFull(ctx); err != nil {
+			return AddError(ctx, c, err)
+		}
 	}
 
 	return c.JSON(http.StatusOK, item)
@@ -113,13 +121,14 @@ func Delete(c echo.Context) error {
 		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
-	item := reflect.New(ctx.Type).Interface()
-
-	if err := gruff.SetKey(item, id); err != nil {
+	item, err := loadItem(c, id)
+	if err != nil {
 		return AddError(ctx, c, err)
 	}
 
-	err := item.(gruff.ArangoObject).Delete(ctx)
+	obj := item.(gruff.ArangoObject)
+
+	err = obj.Delete(ctx)
 	if err != nil {
 		return AddError(ctx, c, err)
 	}

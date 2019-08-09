@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/GruffDebate/server/gruff"
@@ -14,16 +15,19 @@ func ListClaims(which string) func(c echo.Context) error {
 
 		var claim gruff.Claim
 		var claims []gruff.Claim
-		var params gruff.ArangoQueryParameters
-		var bindVars map[string]interface{}
+		var bindVars gruff.BindVars
 		var query string
+
+		params := claim.DefaultQueryParameters()
+		params = params.Merge(GetListParametersFromRequest(c))
+
 		switch which {
 		case "top":
 			query = claim.QueryForTopLevelClaims(params)
 		case "new":
 			query = gruff.DefaultListQuery(&claim, claim.DefaultQueryParameters())
 		default:
-			return AddError(ctx, c, gruff.NewNotFoundError("Not found"))
+			return AddError(ctx, c, gruff.NewNotFoundError(fmt.Sprintf("Not found")))
 		}
 
 		cursor, err := db.Query(ctx.Context, query, bindVars)
@@ -61,11 +65,15 @@ func AddContext(c echo.Context) error {
 	}
 
 	context := gruff.Context{}
-	if err := gruff.LoadArangoObject(ctx, context, id); err != nil {
+	if err := gruff.LoadArangoObject(ctx, &context, id); err != nil {
 		return AddError(ctx, c, err)
 	}
 
 	if err := claim.AddContext(ctx, context); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.LoadFull(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}
 
@@ -84,11 +92,11 @@ func RemoveContext(c echo.Context) error {
 		return AddError(ctx, c, err)
 	}
 
-	if err := validateKeyParameter(c, &claim); err != nil {
+	if err := claim.RemoveContext(ctx, id); err != nil {
 		return AddError(ctx, c, err)
 	}
 
-	if err := claim.RemoveContext(ctx, id); err != nil {
+	if err := claim.LoadFull(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}
 
@@ -111,6 +119,66 @@ func ConvertClaimToMultiPremise(c echo.Context) error {
 	}
 
 	if err := claim.ConvertToMultiPremise(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.LoadFull(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, claim)
+}
+
+func AddPremise(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	parentId := c.Param("parentId")
+	id := c.Param("id")
+
+	claim := gruff.Claim{}
+	claim.ID = parentId
+	if err := claim.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := validateKeyParameter(c, &claim); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	premise := gruff.Claim{}
+	premise.ID = id
+	if err := premise.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.AddPremise(ctx, &premise); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.LoadFull(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, claim)
+}
+
+func RemovePremise(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	parentId := c.Param("parentId")
+	id := c.Param("id")
+
+	claim := gruff.Claim{}
+	claim.ID = parentId
+	if err := claim.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.RemovePremise(ctx, id); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	if err := claim.LoadFull(ctx); err != nil {
 		return AddError(ctx, c, err)
 	}
 

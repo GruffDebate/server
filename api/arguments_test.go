@@ -173,8 +173,6 @@ func TestMoveArgument(t *testing.T) {
 	res, _ := r.Run(Router())
 	assert.Equal(t, http.StatusOK, res.Code)
 
-	// TODO: Make a Reload/ReloadFull method(s)
-	arg.Key = ""
 	err = arg.LoadFull(CTX)
 	assert.NoError(t, err)
 	expected, _ := json.Marshal(arg)
