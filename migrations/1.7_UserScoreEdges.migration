@@ -1,0 +1,10 @@
+type: graph
+action: create
+name: user_scores
+edgedefinitions:
+   - collection: scores
+     from: 
+         - users
+     to:
+         - claims
+         - arguments

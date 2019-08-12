@@ -50,14 +50,16 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 
 	private.GET("/users/claims", List)
 
+	private.POST("/claims/:id/score", SetScore)
+	private.PUT("/claims/:id/score", SetScore)
+	private.POST("/arguments/:id/score", SetScore)
+	private.PUT("/arguments/:id/score", SetScore)
+
 	public.GET("/arguments/:id", Get)
 	private.POST("/arguments", Create)
 	private.PUT("/arguments/:id", Update)
 	private.DELETE("/arguments/:id", Delete)
 	private.PUT("/arguments/:id/move/:type/:targetId", MoveArgument)
-
-	//private.POST("/arguments/:id/strength", SetScore)
-	//private.PUT("/arguments/:id/strength", SetScore)
 
 	// TODO: Test all these
 	public.GET("/contexts", List)

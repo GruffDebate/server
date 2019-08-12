@@ -51,6 +51,7 @@ func cleanData(db arango.Database) {
 		&Argument{},
 		&Context{},
 		&Claim{},
+		&UserScore{},
 		&User{},
 	}
 

@@ -250,3 +250,73 @@ func (u *User) ChangePassword(ctx *ServerContext, oldPassword string) Error {
 
 	return nil
 }
+
+// Scoring
+
+func (u User) Score(ctx *ServerContext, target ArangoObject, score float32) Error {
+	oldScore, err := u.ScoreFor(ctx, target)
+	if err != nil {
+		return err
+	}
+
+	if oldScore != nil {
+		if err := oldScore.Delete(ctx); err != nil {
+			return err
+		}
+	}
+
+	newScore := UserScore{
+		Edge: Edge{
+			From: u.ArangoID(),
+			To:   target.ArangoID(),
+		},
+		Score: score,
+	}
+
+	if err := newScore.Create(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// TODO: Need separate DB connection?
+	// This only works because there is no waiting for this transaction to commit
+	//go target.UpdateScores(ctx)
+
+	return nil
+}
+
+func (u *User) ScoreFor(ctx *ServerContext, target ArangoObject) (*UserScore, Error) {
+	score := UserScore{}
+	bindVars := BindVars{
+		"user": u.ArangoID(),
+	}
+	var dateFilter string
+	if claim, ok := target.(*Claim); ok {
+		dateFilter = claim.DateFilter(bindVars)
+		bindVars["target"] = claim.ID
+	} else if arg, ok := target.(*Argument); ok {
+		dateFilter = arg.DateFilter(bindVars)
+		bindVars["target"] = arg.ID
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR targ IN %s
+                                   FILTER obj._to == targ._id
+                                      AND obj._from == @user
+                                      AND targ.id == @target
+                                   %s
+                                   SORT obj.start ASC
+                                   RETURN obj`,
+		UserScore{}.CollectionName(),
+		target.CollectionName(),
+		dateFilter,
+	)
+	err := FindArangoObject(ctx, query, bindVars, &score)
+	if err != nil {
+		if err.Code() == ERROR_CODE_NOT_FOUND {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+	return &score, nil
+}

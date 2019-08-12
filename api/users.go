@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/GruffDebate/server/gruff"
 	"github.com/labstack/echo"
@@ -131,4 +132,43 @@ func UpdateMe(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, user)
+}
+
+func SetScore(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	if !gruff.IsArangoObject(reflect.PtrTo(ctx.Type)) {
+		return AddError(ctx, c, gruff.NewServerError(fmt.Sprintf("This item isn't compatible with this request")))
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	}
+
+	params := map[string]interface{}{}
+	if err := c.Bind(&params); err != nil {
+		return AddError(ctx, c, gruff.NewServerError(err.Error()))
+	}
+
+	var score float32
+	if s, ok := params["score"].(float64); !ok {
+		return AddError(ctx, c, gruff.NewBusinessError("Score: non zero value required;"))
+	} else {
+		score = float32(s)
+	}
+
+	item, err := loadItem(c, id)
+	if err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	obj := item.(gruff.ArangoObject)
+
+	u := ctx.UserContext
+	if err := u.Score(ctx, obj, score); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, score)
 }

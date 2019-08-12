@@ -62,8 +62,8 @@ type Argument struct {
 	Description      string     `json:"desc" valid:"length(3|4000)"`
 	Note             string     `json:"note"`
 	Pro              bool       `json:"pro"`
-	Strength         float64    `json:"strength"`
-	StrengthRU       float64    `json:"strengthRU"`
+	Strength         float32    `json:"strength"`
+	Relevance        float32    `json:"relevance"`
 	ProArgs          []Argument `json:"proargs"`
 	ConArgs          []Argument `json:"conargs"`
 }
@@ -192,7 +192,7 @@ func (a *Argument) version(ctx *ServerContext) Error {
 	oldVersion := *a
 
 	// Don't use the standard Delete method because it deletes arguments, too
-	if err := DeleteArangoObject(ctx, &oldVersion); err != nil {
+	if err := a.performDelete(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -261,7 +261,7 @@ func (a *Argument) version(ctx *ServerContext) Error {
 
 func (a *Argument) Delete(ctx *ServerContext) Error {
 	// TODO: test
-	if err := DeleteArangoObject(ctx, a); err != nil {
+	if err := a.performDelete(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -300,6 +300,28 @@ func (a *Argument) Delete(ctx *ServerContext) Error {
 			ctx.Rollback()
 			return err
 		}
+	}
+
+	return nil
+}
+
+// Execute the delete action without verifications or deleting args
+func (a *Argument) performDelete(ctx *ServerContext) Error {
+	// TODO: test
+	if err := DeleteArangoObject(ctx, a); err != nil {
+		ctx.Rollback()
+		return err
+	}
+
+	// UserScores
+	// TODO: Test
+	filter := "obj._to == @arg"
+	bindVars := BindVars{
+		"arg": a.ArangoID(),
+	}
+	if err := DeleteArangoObjects(ctx, UserScore{}.CollectionName(), filter, bindVars); err != nil {
+		ctx.Rollback()
+		return err
 	}
 
 	return nil

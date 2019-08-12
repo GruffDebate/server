@@ -44,8 +44,7 @@ type Claim struct {
 	Image         string     `json:"img,omitempty"`
 	MultiPremise  bool       `json:"mp"`
 	PremiseRule   int        `json:"mprule"`
-	Truth         float64    `json:"truth"`   // Average score from direct opinions
-	TruthRU       float64    `json:"truthRU"` // Average score rolled up from argument totals
+	Truth         float32    `json:"truth"` // Average score from direct opinions
 	PremiseClaims []Claim    `json:"premises,omitempty"`
 	ProArgs       []Argument `json:"proargs"`
 	ConArgs       []Argument `json:"conargs"`
@@ -314,6 +313,17 @@ func (c *Claim) performDelete(ctx *ServerContext) Error {
 	}
 
 	// TODO: Links
+
+	// UserScores
+	// TODO: Test
+	filter := "obj._to == @claim"
+	bindVars := BindVars{
+		"claim": c.ArangoID(),
+	}
+	if err := DeleteArangoObjects(ctx, UserScore{}.CollectionName(), filter, bindVars); err != nil {
+		ctx.Rollback()
+		return err
+	}
 
 	if err := DeleteArangoObject(ctx, c); err != nil {
 		ctx.Rollback()
@@ -1111,65 +1121,44 @@ func (c *Claim) ConvertToMultiPremise(ctx *ServerContext) Error {
 // TODO: Implement merge
 // TODO: Implement search
 
-func (c Claim) UpdateTruth(ctx *ServerContext) {
+func (c *Claim) UpdateTruth(ctx *ServerContext) Error {
+	var score float32
 
-	//ctx.Database.Exec("UPDATE claims c SET truth = (SELECT AVG(truth) FROM claim_opinions WHERE claim_id = c.id) WHERE id = ?", c.ID)
-
-	// TODO: test
-	if c.TruthRU == 0.0 {
-		// There's no roll up score yet, so the truth score itself is affecting related roll ups
-		//c.UpdateAncestorRUs(ctx)
+	bindVars := BindVars{
+		"claim": c.ArangoID(),
 	}
-}
+	query := `FOR obj IN scores 
+                    FILTER obj._to == @claim 
+                       AND obj.end == null
+                    AGGREGATE score = AVG(obj.score)
+                    RETURN score`
 
-/*
-func (c *Claim) UpdateTruthRU(ctx *ServerContext) {
-	// TODO: do it all in SQL?
-	// TODO: should updates be recursive? (first, calculate sub-argument RUs)
-	//       or, should it trigger an update of anyone that references it?
-	proArgs, conArgs := c.Arguments(ctx)
-
-	if len(proArgs) > 0 || len(conArgs) > 0 {
-		proScore := 0.0
-		for _, arg := range proArgs {
-			remainder := 1.0 - proScore
-			score := 0 //arg.ScoreRU(ctx)
-			addon := remainder * score
-			proScore += addon
-		}
-
-		conScore := 0.0
-		for _, arg := range conArgs {
-			remainder := 1.0 - conScore
-			score := arg.ScoreRU(ctx)
-			addon := remainder * score
-			conScore += addon
-		}
-
-		netScore := proScore - conScore
-		netScore = 0.5 + 0.5*netScore
-
-		c.TruthRU = netScore
-	} else {
-		c.TruthRU = 0.0
+	db := ctx.Arango.DB
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return NewServerError(err.Error())
+	}
+	_, err = cursor.ReadDocument(ctx.Context, &score)
+	if err != nil {
+		return NewServerError(err.Error())
 	}
 
-	//ctx.Database.Set("gorm:save_associations", false).Save(c)
-
-	c.UpdateAncestorRUs(ctx)
-}
-
-func (c Claim) UpdateAncestorRUs(ctx *ServerContext) {
-	args := []Argument{}
-	ctx.Database.Where("claim_id = ?", c.ID).Find(&args)
-	for _, arg := range args {
-		// TODO: instead, add to list of things to be updated in bg
-		// TODO: what about cycles??
-		// TODO: test
-		arg.UpdateStrengthRU(ctx)
+	updates := Updates{
+		"truth": score,
 	}
+
+	col, grr := ctx.Arango.CollectionFor(c)
+	if grr != nil {
+		return grr
+	}
+	if _, err := col.UpdateDocument(ctx.Context, c.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	//c.Truth = score
+	return nil
 }
-*/
 
 // Graph methods
 

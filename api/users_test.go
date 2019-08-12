@@ -1,7 +1,7 @@
 package api
 
 import (
-	_ "encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -123,6 +123,66 @@ func TestListClaimsByUser(t *testing.T) {
 	res, _ := r.Run(Router())
 	// assert.Equal(t, string(expectedResults), res.Body.String())
 	assert.Equal(t, http.StatusOK, res.Code)
+}
+
+func TestSetScore(t *testing.T) {
+	setup()
+	defer teardown()
+
+	u := CTX.UserContext
+
+	claim := gruff.Claim{
+		Title: "Dude, I totally scored!",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := gruff.Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Scored? Like, left scratch marks?",
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+
+	body := map[string]interface{}{
+		"score": 0.55,
+	}
+
+	r := New(tokenForTestUser(u))
+
+	r.POST(fmt.Sprintf("/api/claims/%s/score", claim.ID))
+	r.SetBody(body)
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusOK, res.Code)
+	assert.Equal(t, "0.55\n", res.Body.String())
+
+	// TODO: Assert that total score was updated
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+
+	score, err := u.ScoreFor(CTX, &claim)
+	assert.NoError(t, err)
+	assert.NotNil(t, score)
+	assert.Equal(t, float32(0.55), score.Score)
+
+	body = map[string]interface{}{
+		"score": 0.22,
+	}
+
+	r.POST(fmt.Sprintf("/api/arguments/%s/score", arg.ID))
+	r.SetBody(body)
+	res, _ = r.Run(Router())
+	assert.Equal(t, http.StatusOK, res.Code)
+	assert.Equal(t, "0.22\n", res.Body.String())
+
+	// TODO: Assert that total score was updated
+	err = arg.Load(CTX)
+	assert.NoError(t, err)
+
+	score, err = u.ScoreFor(CTX, &arg)
+	assert.NoError(t, err)
+	assert.NotNil(t, score)
+	assert.Equal(t, float32(0.22), score.Score)
 }
 
 /*

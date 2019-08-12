@@ -271,6 +271,28 @@ func DeleteArangoObject(ctx *ServerContext, obj ArangoObject) Error {
 	return nil
 }
 
+// Note that this method does NOT check permissions nor perform validations
+// It is up to the calling method to perform the necessary checks
+// The filter must take the form of a match expression (e.g. "obj._id == @claim")
+// TODO: Test
+func DeleteArangoObjects(ctx *ServerContext, collectionName, filter string, bindVars BindVars) Error {
+	db := ctx.Arango.DB
+
+	bindVars["end"] = ctx.RequestTime()
+	query := fmt.Sprintf(`FOR obj IN %s
+                               FILTER %s
+                               FILTER obj.end == null
+                               UPDATE obj WITH { end: @end } IN %s`,
+		collectionName,
+		filter,
+		collectionName)
+	_, err := db.Query(ctx.Context, query, bindVars)
+	if err != nil {
+		return NewServerError(err.Error())
+	}
+	return nil
+}
+
 // Default Finders
 
 func DefaultListQuery(obj ArangoObject, params ArangoQueryParameters) string {
