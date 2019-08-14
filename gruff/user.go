@@ -278,9 +278,10 @@ func (u User) Score(ctx *ServerContext, target ArangoObject, score float32) Erro
 		return err
 	}
 
-	// TODO: Need separate DB connection?
-	// This only works because there is no waiting for this transaction to commit
 	//go target.UpdateScores(ctx)
+	if scorer, ok := target.(Scorer); ok {
+		scorer.UpdateScore(ctx)
+	}
 
 	return nil
 }

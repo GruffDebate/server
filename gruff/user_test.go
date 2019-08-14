@@ -80,6 +80,19 @@ func TestUserScoreFor(t *testing.T) {
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
 
+	cScore, err := claim.Score(CTX)
+	assert.NoError(t, err)
+	aScore, err := arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err := arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.90), claim.Truth)
+	assert.Equal(t, float32(1.00), arg.Relevance)
+	assert.Equal(t, float32(0.50), arg.Str)
+	assert.Equal(t, float32(0.90), cScore)
+	assert.Equal(t, float32(1.00), aScore)
+	assert.Equal(t, float32(0.50), aStr)
+
 	score, err := u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
 	assert.Equal(t, float32(0.90), score.Score)
@@ -92,6 +105,9 @@ func TestUserScoreFor(t *testing.T) {
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
 	assert.Nil(t, score)
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.50), cScore)
 	claim.QueryAt = nil
 
 	err = u.Score(CTX, &arg, 0.75)
@@ -99,6 +115,19 @@ func TestUserScoreFor(t *testing.T) {
 	CTX.RequestAt = nil
 
 	firstScoresTime := time.Now()
+
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.90), claim.Truth)
+	assert.Equal(t, float32(0.75), arg.Relevance)
+	assert.Equal(t, float32(0.375), arg.Str)
+	assert.Equal(t, float32(0.90), cScore)
+	assert.Equal(t, float32(0.75), aScore)
+	assert.Equal(t, float32(0.375), aStr)
 
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
@@ -112,6 +141,12 @@ func TestUserScoreFor(t *testing.T) {
 	score, err = u.ScoreFor(CTX, &arg)
 	assert.NoError(t, err)
 	assert.Nil(t, score)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(1.00), aScore)
+	assert.Equal(t, float32(0.50), aStr)
 	arg.QueryAt = nil
 
 	err = u.Score(CTX, &claim, 0.10)
@@ -123,6 +158,19 @@ func TestUserScoreFor(t *testing.T) {
 	CTX.RequestAt = nil
 
 	secondScoresTime := time.Now()
+
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.10), claim.Truth)
+	assert.Equal(t, float32(0.35), arg.Relevance)
+	assert.Equal(t, float32(0.175), arg.Str)
+	assert.Equal(t, float32(0.10), cScore)
+	assert.Equal(t, float32(0.35), aScore)
+	assert.Equal(t, float32(0.175), aStr)
 
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
@@ -136,12 +184,21 @@ func TestUserScoreFor(t *testing.T) {
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
 	assert.Equal(t, float32(0.90), score.Score)
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.90), cScore)
 	claim.QueryAt = nil
 
 	arg.QueryAt = &firstScoresTime
 	score, err = u.ScoreFor(CTX, &arg)
 	assert.NoError(t, err)
 	assert.Equal(t, float32(0.75), score.Score)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.75), aScore)
+	assert.Equal(t, float32(0.375), aStr)
 	arg.QueryAt = nil
 
 	err = claim.Update(CTX, Updates{})
@@ -157,24 +214,46 @@ func TestUserScoreFor(t *testing.T) {
 	err = arg.Load(CTX)
 	assert.NoError(t, err)
 
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.10), claim.Truth)
+	assert.Equal(t, float32(0.35), arg.Relevance)
+	assert.Equal(t, float32(0.175), arg.Str)
+	assert.Equal(t, float32(0.10), cScore)
+	assert.Equal(t, float32(0.35), aScore)
+	assert.Equal(t, float32(0.175), aStr)
+
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
-	assert.Nil(t, score)
+	assert.Equal(t, float32(0.10), score.Score)
 
 	score, err = u.ScoreFor(CTX, &arg)
 	assert.NoError(t, err)
-	assert.Nil(t, score)
+	assert.Equal(t, float32(0.35), score.Score)
 
 	claim.QueryAt = &secondScoresTime
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)
 	assert.Equal(t, float32(0.10), score.Score)
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.10), cScore)
 	claim.QueryAt = nil
 
 	arg.QueryAt = &secondScoresTime
 	score, err = u.ScoreFor(CTX, &arg)
 	assert.NoError(t, err)
 	assert.Equal(t, float32(0.35), score.Score)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.35), aScore)
+	assert.Equal(t, float32(0.175), aStr)
 	arg.QueryAt = nil
 
 	err = u.Score(CTX, &claim, 0.50)
@@ -184,6 +263,19 @@ func TestUserScoreFor(t *testing.T) {
 	err = u.Score(CTX, &arg, 0.55)
 	assert.NoError(t, err)
 	CTX.RequestAt = nil
+
+	cScore, err = claim.Score(CTX)
+	assert.NoError(t, err)
+	aScore, err = arg.Score(CTX)
+	assert.NoError(t, err)
+	aStr, err = arg.Strength(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, float32(0.50), claim.Truth)
+	assert.Equal(t, float32(0.55), arg.Relevance)
+	assert.Equal(t, float32(0.275), arg.Str)
+	assert.Equal(t, float32(0.50), cScore)
+	assert.Equal(t, float32(0.55), aScore)
+	assert.Equal(t, float32(0.275), aStr)
 
 	score, err = u.ScoreFor(CTX, &claim)
 	assert.NoError(t, err)

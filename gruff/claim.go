@@ -34,6 +34,8 @@ const PREMISE_RULE_ALL int = 1
 const PREMISE_RULE_ANY int = 2
 const PREMISE_RULE_ANY_TWO int = 3
 
+const DEFAULT_CLAIM_SCORE float32 = 0.50
+
 type Claim struct {
 	VersionedModel
 	Title         string     `json:"title" valid:"length(3|1000)"`
@@ -81,6 +83,8 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 			return NewBusinessError("A claim with the same ID already exists")
 		}
 	}
+
+	c.Truth = DEFAULT_CLAIM_SCORE
 
 	return CreateArangoObject(ctx, c)
 }
@@ -208,6 +212,28 @@ func (c *Claim) version(ctx *ServerContext) Error {
 	}
 
 	// TODO: Links
+
+	// UserScores
+	// TODO: Do this as a bulk operation
+	// TODO: Test
+	userScores, err := oldVersion.UserScores(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range userScores {
+		newEdge := UserScore{
+			Edge: Edge{
+				From: edge.From,
+				To:   c.ArangoID(),
+			},
+			Score: edge.Score,
+		}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
 
 	return nil
 }
@@ -861,7 +887,6 @@ func (c Claim) NumberOfPremises(ctx *ServerContext) (int64, Error) {
 	return n, nil
 }
 
-// TODO: Make generic
 func (c Claim) EdgesToThisPremise(ctx *ServerContext) ([]PremiseEdge, Error) {
 	edges := []PremiseEdge{}
 
@@ -1117,31 +1142,24 @@ func (c *Claim) ConvertToMultiPremise(ctx *ServerContext) Error {
 	return nil
 }
 
-// TODO: Create method should set default Truth to 0.5
 // TODO: Implement merge
 // TODO: Implement search
 
-func (c *Claim) UpdateTruth(ctx *ServerContext) Error {
-	var score float32
+// Scorer
 
-	bindVars := BindVars{
-		"claim": c.ArangoID(),
+func (c *Claim) Score(ctx *ServerContext) (float32, Error) {
+	if c.QueryAt == nil {
+		return c.Truth, nil
 	}
-	query := `FOR obj IN scores 
-                    FILTER obj._to == @claim 
-                       AND obj.end == null
-                    AGGREGATE score = AVG(obj.score)
-                    RETURN score`
+	return c.scoreAt(ctx)
+}
 
-	db := ctx.Arango.DB
-	cursor, err := db.Query(ctx.Context, query, bindVars)
-	defer CloseCursor(cursor)
+func (c *Claim) UpdateScore(ctx *ServerContext) Error {
+	// TODO: not on deleted - validate for update
+	c.QueryAt = nil
+	score, err := c.scoreAt(ctx)
 	if err != nil {
-		return NewServerError(err.Error())
-	}
-	_, err = cursor.ReadDocument(ctx.Context, &score)
-	if err != nil {
-		return NewServerError(err.Error())
+		return err
 	}
 
 	updates := Updates{
@@ -1156,8 +1174,71 @@ func (c *Claim) UpdateTruth(ctx *ServerContext) Error {
 		return NewServerError(err.Error())
 	}
 
-	//c.Truth = score
+	c.Truth = score
 	return nil
+}
+
+func (c *Claim) scoreAt(ctx *ServerContext) (float32, Error) {
+	var score float32
+	results := map[string]interface{}{}
+
+	bindVars := BindVars{
+		"claim": c.ID,
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                 FOR c IN %s
+                                   FILTER obj._to == c._id
+                                      AND c.id == @claim
+                                   %s
+                                   COLLECT
+                                   AGGREGATE 
+                                     num = COUNT(obj),
+                                     score = AVG(obj.score)
+                                   RETURN { num, score }`,
+		UserScore{}.CollectionName(),
+		c.CollectionName(),
+		c.DateFilter(bindVars))
+
+	db := ctx.Arango.DB
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return score, NewServerError(err.Error())
+	}
+	_, err = cursor.ReadDocument(ctx.Context, &results)
+	if err != nil {
+		return score, NewServerError(err.Error())
+	}
+
+	if val, ok := results["score"].(float64); ok {
+		score = float32(val)
+	}
+	if score == 0.0 {
+		if count, ok := results["num"].(float64); ok {
+			if count == 0 {
+				score = DEFAULT_CLAIM_SCORE
+			}
+		}
+	}
+
+	return score, nil
+}
+
+func (c Claim) UserScores(ctx *ServerContext) ([]UserScore, Error) {
+	edges := []UserScore{}
+
+	bindVars := BindVars{
+		"to": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._to == @to 
+                                %s
+                                SORT obj.start
+                                RETURN obj`,
+		UserScore{}.CollectionName(),
+		c.DateFilter(bindVars))
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
 }
 
 // Graph methods

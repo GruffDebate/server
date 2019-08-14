@@ -16,4 +16,5 @@ func TestIsLoader(t *testing.T) {
 	assert.False(t, IsLoader(reflect.TypeOf(&PremiseEdge{})))
 	assert.False(t, IsLoader(reflect.TypeOf(&Context{})))
 	assert.False(t, IsLoader(reflect.TypeOf(&ContextEdge{})))
+	assert.False(t, IsLoader(reflect.TypeOf(&UserScore{})))
 }

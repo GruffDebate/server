@@ -48,6 +48,8 @@ import (
     Strength: 1.0 = This argument is definitely the most important argument for this side - no need to read any others; 0.5 = This is one more argument to consider; 0.01 = Probably not even worth including in the discussion
 */
 
+const DEFAULT_ARGUMENT_SCORE float32 = 1.00
+
 type Argument struct {
 	VersionedModel
 	TargetClaimID    *string    `json:"targetClaimId,omitempty"`
@@ -62,8 +64,8 @@ type Argument struct {
 	Description      string     `json:"desc" valid:"length(3|4000)"`
 	Note             string     `json:"note"`
 	Pro              bool       `json:"pro"`
-	Strength         float32    `json:"strength"`
 	Relevance        float32    `json:"relevance"`
+	Str              float32    `json:"strength"`
 	ProArgs          []Argument `json:"proargs"`
 	ConArgs          []Argument `json:"conargs"`
 }
@@ -154,6 +156,9 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 		}
 	}
 
+	a.Relevance = DEFAULT_ARGUMENT_SCORE
+	a.Str = a.Relevance * baseClaim.Truth
+
 	if err := CreateArangoObject(ctx, a); err != nil {
 		ctx.Rollback()
 		return err
@@ -192,7 +197,7 @@ func (a *Argument) version(ctx *ServerContext) Error {
 	oldVersion := *a
 
 	// Don't use the standard Delete method because it deletes arguments, too
-	if err := a.performDelete(ctx); err != nil {
+	if err := oldVersion.performDelete(ctx); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -255,6 +260,33 @@ func (a *Argument) version(ctx *ServerContext) Error {
 	}
 
 	// TODO: Links
+
+	// UserScores
+	// TODO: Do this as a bulk operation
+	// TODO: Test
+	userScores, err := oldVersion.UserScores(ctx)
+	if err != nil {
+		ctx.Rollback()
+		return err
+	}
+	for _, edge := range userScores {
+		newEdge := UserScore{
+			Edge: Edge{
+				From: edge.From,
+				To:   a.ArangoID(),
+			},
+			Score: edge.Score,
+		}
+		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+
+	if err := a.UpdateScore(ctx); err != nil {
+		ctx.Rollback()
+		return err
+	}
 
 	return nil
 }
@@ -471,6 +503,137 @@ func (a *Argument) LoadFull(ctx *ServerContext) Error {
 	return nil
 }
 
+// Scorer
+
+func (a *Argument) Score(ctx *ServerContext) (float32, Error) {
+	if a.QueryAt == nil {
+		return a.Relevance, nil
+	}
+	return a.scoreAt(ctx)
+}
+
+func (a *Argument) UpdateScore(ctx *ServerContext) Error {
+	// TODO: not on deleted - validate for update
+	a.QueryAt = nil
+	score, err := a.scoreAt(ctx)
+	if err != nil {
+		return err
+	}
+
+	claim := Claim{}
+	claim.ID = a.ClaimID
+	if err := claim.Load(ctx); err != nil {
+		return err
+	}
+	truth, err := claim.Score(ctx)
+	if err != nil {
+		return err
+	}
+
+	strength := score * truth
+	updates := Updates{
+		"relevance": score,
+		"strength":  strength,
+	}
+
+	col, grr := ctx.Arango.CollectionFor(a)
+	if grr != nil {
+		return grr
+	}
+	if _, err := col.UpdateDocument(ctx.Context, a.ArangoKey(), updates); err != nil {
+		return NewServerError(err.Error())
+	}
+
+	a.Relevance = score
+	a.Str = strength
+	return nil
+}
+
+func (a *Argument) scoreAt(ctx *ServerContext) (float32, Error) {
+	var score float32
+	results := map[string]interface{}{}
+
+	bindVars := BindVars{
+		"argument": a.ID,
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                 FOR a IN %s
+                                   FILTER obj._to == a._id
+                                      AND a.id == @argument
+                                   %s
+                                   COLLECT
+                                   AGGREGATE 
+                                     num = COUNT(obj),
+                                     score = AVG(obj.score)
+                                   RETURN { num, score }`,
+		UserScore{}.CollectionName(),
+		a.CollectionName(),
+		a.DateFilter(bindVars))
+
+	db := ctx.Arango.DB
+	cursor, err := db.Query(ctx.Context, query, bindVars)
+	defer CloseCursor(cursor)
+	if err != nil {
+		return score, NewServerError(err.Error())
+	}
+	_, err = cursor.ReadDocument(ctx.Context, &results)
+	if err != nil {
+		return score, NewServerError(err.Error())
+	}
+
+	if val, ok := results["score"].(float64); ok {
+		score = float32(val)
+	}
+	if score == 0.0 {
+		if count, ok := results["num"].(float64); ok {
+			if count == 0.0 {
+				score = DEFAULT_ARGUMENT_SCORE
+			}
+		}
+	}
+	return score, nil
+}
+
+func (a *Argument) Strength(ctx *ServerContext) (float32, Error) {
+	if a.QueryAt == nil {
+		return a.Str, nil
+	}
+
+	relevance, err := a.Score(ctx)
+	if err != nil {
+		return 0.0, err
+	}
+
+	claim := Claim{}
+	claim.ID = a.ClaimID
+	if err := claim.Load(ctx); err != nil {
+		return 0.0, err
+	}
+	truth, err := claim.Score(ctx)
+	if err != nil {
+		return 0.0, err
+	}
+
+	return relevance * truth, nil
+}
+
+func (a Argument) UserScores(ctx *ServerContext) ([]UserScore, Error) {
+	edges := []UserScore{}
+
+	bindVars := BindVars{
+		"to": a.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s 
+                                FILTER obj._to == @to 
+                                %s
+                                SORT obj.start
+                                RETURN obj`,
+		UserScore{}.CollectionName(),
+		a.DateFilter(bindVars))
+	err := FindArangoObjects(ctx, query, bindVars, &edges)
+	return edges, err
+}
+
 // Business methods
 
 func (a Argument) AddArgument(ctx *ServerContext, arg Argument) Error {
@@ -625,112 +788,6 @@ func (a *Argument) MoveTo(ctx *ServerContext, target ArangoObject, pro bool) Err
 
 	return nil
 }
-
-// TODO: Create method should set default Strength to 0.5
-// TODO: implement curator permissions
-
-/*
-func (a Argument) UpdateStrength(ctx *ServerContext) {
-	ctx.Database.Exec("UPDATE arguments a SET strength = (SELECT AVG(strength) FROM argument_opinions WHERE argument_id = a.id) WHERE id = ?", a.ID)
-
-	// TODO: test
-	if a.StrengthRU == 0.0 {
-		// There's no roll up score yet, so the strength score itself is affecting related roll ups
-		a.UpdateAncestorRUs(ctx)
-	}
-}
-
-func (a *Argument) UpdateStrengthRU(ctx *ServerContext) {
-	// TODO: do it all in SQL?
-	// TODO: use strategy pattern for different scoring mechanisms? Or leave external?
-	// TODO: use latest algorithm
-	proArgs, conArgs := a.Arguments(ctx)
-
-	if len(proArgs) > 0 || len(conArgs) > 0 {
-		proScore := 0.0
-		for _, arg := range proArgs {
-			remainder := 1.0 - proScore
-			score := arg.ScoreRU(ctx)
-			addon := remainder * score
-			proScore += addon
-		}
-
-		conScore := 0.0
-		for _, arg := range conArgs {
-			remainder := 1.0 - conScore
-			score := arg.ScoreRU(ctx)
-			addon := remainder * score
-			conScore += addon
-		}
-
-		netScore := proScore - conScore
-		netScore = 0.5 + 0.5*netScore
-
-		a.StrengthRU = netScore
-	} else {
-		a.StrengthRU = 0.0
-	}
-
-	ctx.Database.Set("gorm:save_associations", false).Save(a)
-
-	a.UpdateAncestorRUs(ctx)
-}
-
-*/
-/*
-func (a Argument) UpdateAncestorRUs(ctx *ServerContext) {
-	if a.TargetClaimID != nil {
-		claim := a.TargetClaim
-		if claim == nil {
-			claim = &Claim{}
-			if err := ctx.Database.Where("id = ?", a.TargetClaimID).First(claim).Error; err != nil {
-				return
-			}
-		}
-		claim.UpdateTruthRU(ctx)
-	} else {
-		arg := a.TargetArgument
-		if arg == nil {
-			arg = &Argument{}
-			if err := ctx.Database.Where("id = ?", a.TargetArgumentID).First(arg).Error; err != nil {
-				fmt.Println("Error loading argument:", err.Error())
-				return
-			}
-		}
-		arg.UpdateStrengthRU(ctx)
-	}
-}
-
-func (a Argument) Score(ctx *ServerContext) float64 {
-	c := a.Claim
-	if c == nil {
-		c = &Claim{}
-		ctx.Database.Where("id = ?", a.ClaimID).First(c)
-	}
-
-	return a.Strength * c.Truth
-}
-
-func (a Argument) ScoreRU(ctx *ServerContext) float64 {
-	c := a.Claim
-	if c == nil {
-		c = &Claim{}
-		ctx.Database.Where("id = ?", a.ClaimID).First(c)
-	}
-
-	truth := c.TruthRU
-	if truth == 0.0 {
-		truth = c.Truth
-	}
-
-	strength := a.StrengthRU
-	if strength == 0.0 {
-		strength = a.Strength
-	}
-
-	return strength * truth
-}
-*/
 
 // Scopes
 
