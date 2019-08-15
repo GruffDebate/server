@@ -1270,8 +1270,23 @@ func (c Claim) HasCycle(ctx *ServerContext) (bool, Error) {
 
 // Queries
 
+// TODO: Obviously, this is going to have to be denormalized at some point
 func (c Claim) QueryForTopLevelClaims(params ArangoQueryParameters) string {
 	params = c.DefaultQueryParameters().Merge(params)
-	query := "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null"
+	query := `FOR obj IN claims 
+                    LET bcCount=(FOR bc IN base_claims 
+                                   FILTER bc._to == obj._id 
+                                      AND bc.end == null 
+                                  COLLECT WITH COUNT INTO length 
+                                   RETURN length) 
+                    FILTER bcCount[0] == 0 
+                    LET pCount=(FOR p IN premises
+                                   FILTER p._to == obj._id 
+                                      AND p.end == null 
+                                  COLLECT WITH COUNT INTO length 
+                                   RETURN length) 
+                    FILTER bcCount[0] == 0 
+                    FILTER pCount[0] == 0 
+                    AND obj.end == null`
 	return params.Apply(query)
 }

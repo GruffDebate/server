@@ -1066,27 +1066,183 @@ func TestClaimReorderPremise(t *testing.T) {
 }
 
 func TestClaimQueryForTopLevelClaims(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	CTX.RequestAt = nil
+
+	claim1 := Claim{
+		Title:        "A Top everything Claim for queries for top level claims",
+		MultiPremise: true,
+		PremiseRule:  PREMISE_RULE_ALL,
+	}
+	err := claim1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claim2 := Claim{
+		Title: "C Top everything Claim for queries for top level claims",
+	}
+	err = claim2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claim3 := Claim{
+		Title: "B Top everything Claim for queries for top level claims",
+	}
+	err = claim3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	premise := Claim{
+		Title: "A premise Claim for queries for top level claims",
+	}
+	err = premise.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim1.AddPremise(CTX, &premise)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := Argument{
+		TargetClaimID: &premise.ID,
+		Title:         "I need to argue for the top level claims",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := Argument{
+		TargetClaimID: &claim2.ID,
+		Title:         "I need to argue against the top level claims",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg3 := Argument{
+		TargetArgumentID: &arg1.ID,
+		Title:            "I might as well argue against the arguments",
+		Pro:              false,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	claims := []Claim{}
 	params := ArangoQueryParameters{}
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj.start DESC LIMIT 0, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+	bindVars := BindVars{}
+	query := Claim{}.QueryForTopLevelClaims(params)
 
-	params.Return = support.StringPtr("obj._id")
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj.start DESC LIMIT 0, 20 RETURN obj._id", Claim{}.QueryForTopLevelClaims(params))
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	// This will fail when run alone, since it depends on claims created in other tests
+	assert.Equal(t, 20, len(claims))
+	for _, claim := range claims {
+		assert.NotEqual(t, premise.ID, claim.ID)
+		assert.NotEqual(t, arg1.ClaimID, claim.ID)
+		assert.NotEqual(t, arg2.ClaimID, claim.ID)
+		assert.NotEqual(t, arg3.ClaimID, claim.ID)
+	}
 
-	params.Return = support.StringPtr("{claim: obj, count: bcCount[0]}")
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj.start DESC LIMIT 0, 20 RETURN {claim: obj, count: bcCount[0]}", Claim{}.QueryForTopLevelClaims(params))
+	params.Limit = support.IntPtr(3)
+	query = Claim{}.QueryForTopLevelClaims(params)
+	claims = []Claim{}
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(claims))
+	assert.Equal(t, claim3.ID, claims[0].ID)
+	assert.Equal(t, claim2.ID, claims[1].ID)
+	assert.Equal(t, claim1.ID, claims[2].ID)
+	assert.Equal(t, claim1.Title, claims[2].Title)
 
-	params.Return = nil
-	params.Sort = support.StringPtr("obj._id")
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj._id LIMIT 0, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
-
-	params.Offset = support.IntPtr(5)
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj._id LIMIT 5, 20 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
-
-	params.Limit = support.IntPtr(10)
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj._id LIMIT 5, 10 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+	params.Offset = support.IntPtr(1)
+	params.Limit = support.IntPtr(2)
+	query = Claim{}.QueryForTopLevelClaims(params)
+	claims = []Claim{}
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(claims))
+	assert.Equal(t, claim2.ID, claims[0].ID)
+	assert.Equal(t, claim1.ID, claims[1].ID)
 
 	params.Offset = nil
-	assert.Equal(t, "FOR obj IN claims LET bcCount=(FOR bc IN base_claims FILTER bc._to == obj._id COLLECT WITH COUNT INTO length RETURN length) FILTER bcCount[0] == 0 AND obj.end == null SORT obj._id LIMIT 0, 10 RETURN obj", Claim{}.QueryForTopLevelClaims(params))
+	params.Limit = support.IntPtr(20)
+	params.Sort = support.StringPtr("obj._id")
+	query = Claim{}.QueryForTopLevelClaims(params)
+	claims = []Claim{}
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.Equal(t, 20, len(claims))
+	var prevClaim Claim
+	for _, claim := range claims {
+		if prevClaim.ID != "" {
+			assert.True(t, prevClaim.ArangoID() < claim.ArangoID())
+		}
+		assert.NotEqual(t, premise.ID, claim.ID)
+		assert.NotEqual(t, arg1.ClaimID, claim.ID)
+		assert.NotEqual(t, arg2.ClaimID, claim.ID)
+		assert.NotEqual(t, arg3.ClaimID, claim.ID)
+		prevClaim = claim
+	}
+
+	params.Sort = nil
+	params.Limit = support.IntPtr(4)
+	query = Claim{}.QueryForTopLevelClaims(params)
+	claims = []Claim{}
+	err = claim1.RemovePremise(CTX, premise.ArangoID())
+	assert.NoError(t, err)
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(claims))
+	assert.Equal(t, claim1.ID, claims[0].ID)
+	assert.Equal(t, claim1.Title, claims[0].Title)
+	assert.Equal(t, premise.ID, claims[1].ID)
+	assert.Equal(t, premise.Title, claims[1].Title)
+	assert.Equal(t, claim3.ID, claims[2].ID)
+	assert.Equal(t, claim2.ID, claims[3].ID)
+
+	params.Limit = support.IntPtr(4)
+	query = Claim{}.QueryForTopLevelClaims(params)
+	claims = []Claim{}
+	err = claim1.ConvertToMultiPremise(CTX)
+	assert.NoError(t, err)
+	err = claim1.AddPremise(CTX, &claim2)
+	assert.NoError(t, err)
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(claims))
+	assert.Equal(t, claim1.ID, claims[0].ID)
+	assert.Equal(t, premise.ID, claims[1].ID)
+	assert.Equal(t, claim3.ID, claims[2].ID)
+	assert.NotEqual(t, claim2.ID, claims[3].ID)
+
+	claims = []Claim{}
+	err = arg3.Delete(CTX)
+	assert.NoError(t, err)
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(claims))
+	assert.Equal(t, claim1.ID, claims[0].ID)
+	assert.Equal(t, arg3.ClaimID, claims[1].ID)
+	assert.Equal(t, premise.ID, claims[2].ID)
+	assert.Equal(t, claim3.ID, claims[3].ID)
+
+	claims = []Claim{}
+	err = claim3.Delete(CTX)
+	assert.NoError(t, err)
+	err = FindArangoObjects(CTX, query, bindVars, &claims)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(claims))
+	assert.Equal(t, claim1.ID, claims[0].ID)
+	assert.Equal(t, claim1.Title, claims[0].Title)
+	assert.Equal(t, arg3.ClaimID, claims[1].ID)
+	assert.Equal(t, arg3.Title, claims[1].Title)
+	assert.Equal(t, premise.ID, claims[2].ID)
+	assert.NotEqual(t, claim2.ID, claims[3].ID)
+	assert.NotEqual(t, claim3.ID, claims[3].ID)
 }
 
 func TestClaimLoadFull(t *testing.T) {

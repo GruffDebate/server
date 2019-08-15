@@ -11,7 +11,6 @@ import (
 func ListClaims(which string) func(c echo.Context) error {
 	return func(c echo.Context) error {
 		ctx := ServerContext(c)
-		db := ctx.Arango.DB
 
 		var claim gruff.Claim
 		var claims []gruff.Claim
@@ -30,20 +29,10 @@ func ListClaims(which string) func(c echo.Context) error {
 			return AddError(ctx, c, gruff.NewNotFoundError(fmt.Sprintf("Not found")))
 		}
 
-		cursor, err := db.Query(ctx.Context, query, bindVars)
+		err := gruff.FindArangoObjects(ctx, query, bindVars, &claims)
 		if err != nil {
-			return AddError(ctx, c, gruff.NewServerError(err.Error()))
+			return AddError(ctx, c, err)
 		}
-		defer cursor.Close()
-		for cursor.HasMore() {
-			claim := gruff.Claim{}
-			_, err := cursor.ReadDocument(ctx.Context, &claim)
-			if err != nil {
-				return AddError(ctx, c, gruff.NewServerError(err.Error()))
-			}
-			claims = append(claims, claim)
-		}
-
 		return c.JSON(http.StatusOK, claims)
 	}
 }
