@@ -158,6 +158,9 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) Error {
 			if tag.Get("settable") == "false" {
 				return NewPermissionError("field is unsettable", data)
 			}
+			if tag.Get("skip") == "true" {
+				return nil
+			}
 			destType := vField.Type()
 			if destType.Kind() == reflect.Ptr {
 				destType = destType.Elem()

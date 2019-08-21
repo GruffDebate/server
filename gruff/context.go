@@ -205,3 +205,21 @@ func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
 	err := FindArangoObject(ctx, query, bindVars, &context)
 	return context, err
 }
+
+func (c *Context) Load(ctx *ServerContext) Error {
+	var err Error
+	if c.ArangoKey() != "" {
+		err = LoadArangoObject(ctx, c, c.ArangoKey())
+	} else {
+		err = NewBusinessError("There is no key or id for this Context")
+	}
+
+	return err
+}
+
+func (c *Context) LoadFull(ctx *ServerContext) Error {
+	if err := c.Load(ctx); err != nil {
+		return err
+	}
+	return nil
+}

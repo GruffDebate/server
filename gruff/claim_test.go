@@ -735,7 +735,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 
 	firstKey := claim.ArangoKey()
 
-	err = claim.version(CTX)
+	err = claim.version(CTX, Updates{})
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-24 * time.Hour)
 	patch["end"] = time.Now().Add(-1 * time.Hour)
@@ -744,7 +744,7 @@ func TestLoadClaimAtDate(t *testing.T) {
 	secondKey := claim.ArangoKey()
 
 	claim.DeletedAt = nil
-	err = claim.version(CTX)
+	err = claim.version(CTX, Updates{})
 	assert.NoError(t, err)
 	patch["start"] = time.Now().Add(-1 * time.Hour)
 	delete(patch, "end")

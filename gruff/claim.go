@@ -51,8 +51,7 @@ type Claim struct {
 	ProArgs       []Argument `json:"proargs"`
 	ConArgs       []Argument `json:"conargs"`
 	Links         []Link     `json:"links,omitempty"`
-	ContextElems  []Context  `json:"contexts,omitempty"`
-	ContextIDs    []uint64   `json:"contextIds,omitempty"`
+	ContextElems  []Context  `json:"contexts,omitempty" skip:"true"`
 }
 
 // ArangoObject interface
@@ -86,14 +85,39 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 
 	c.Truth = DEFAULT_CLAIM_SCORE
 
-	return CreateArangoObject(ctx, c)
+	aerr := CreateArangoObject(ctx, c)
+	if aerr != nil {
+		ctx.Rollback()
+		return aerr
+	}
+
+	// TODO TEST
+	if len(c.ContextElems) > 0 {
+		for _, item := range c.ContextElems {
+			context := Context{}
+			context.Key = item.ArangoKey()
+			err := context.Load(ctx)
+			if err != nil {
+				ctx.Rollback()
+				return err
+			}
+
+			err = c.AddContext(ctx, context)
+			if err != nil {
+				ctx.Rollback()
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c *Claim) Update(ctx *ServerContext, updates Updates) Error {
 	return UpdateArangoObject(ctx, c, updates)
 }
 
-func (c *Claim) version(ctx *ServerContext) Error {
+func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 	c.QueryAt = nil
 	oldVersion := *c
 
@@ -201,13 +225,29 @@ func (c *Claim) version(ctx *ServerContext) Error {
 		return err
 	}
 	for _, edge := range contextEdges {
-		newEdge := ContextEdge{Edge: Edge{
-			From: edge.From,
-			To:   c.ArangoID(),
-		}}
-		if err := newEdge.Create(ctx); err != nil {
-			ctx.Rollback()
-			return err
+		if len(c.ContextElems) > 0 {
+			for _, item := range c.ContextElems {
+				if item.ArangoID() == edge.From {
+					newEdge := ContextEdge{Edge: Edge{
+						From: edge.From,
+						To:   c.ArangoID(),
+					}}
+					if err := newEdge.Create(ctx); err != nil {
+						ctx.Rollback()
+						return err
+					}
+					break
+				}
+			}
+		} else {
+			newEdge := ContextEdge{Edge: Edge{
+				From: edge.From,
+				To:   c.ArangoID(),
+			}}
+			if err := newEdge.Create(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
 		}
 	}
 
