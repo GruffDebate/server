@@ -23,7 +23,7 @@ func List(c echo.Context) error {
 	userID := ActiveUserID(c, ctx)
 	filters := gruff.BindVars{}
 	var query string
-	if userID != "" && ctx.Type.Name() != "Context" {
+	if userID != "" && gruff.IsVersionedModel(ctx.Type) {
 		filters["creator"] = userID
 		query = gruff.DefaultListQueryForUser(item, params)
 	} else {

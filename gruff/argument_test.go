@@ -102,6 +102,8 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 		Note:          "I'm not sure that there should be notes for this",
 		Pro:           true,
 	}
+	arg.ProArgs = []Argument{Argument{Title: "I should not be saved"}}
+	arg.ConArgs = []Argument{Argument{Title: "Me neither, bro."}}
 	err = arg.Create(CTX)
 	assert.NoError(t, err)
 
@@ -122,6 +124,8 @@ func TestCreateArgumentForClaimNoBase(t *testing.T) {
 	assert.Equal(t, arg.Note, saved.Note)
 	assert.Equal(t, arg.TargetClaimID, saved.TargetClaimID)
 	assert.Equal(t, arg.Pro, saved.Pro)
+	assert.Equal(t, []Argument(nil), saved.ProArgs)
+	assert.Equal(t, []Argument(nil), saved.ConArgs)
 
 	// Make sure a base claim was created
 	bc := Claim{}

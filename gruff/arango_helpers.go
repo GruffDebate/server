@@ -178,6 +178,10 @@ func CreateArangoObject(ctx *ServerContext, obj ArangoObject) Error {
 		}
 	}
 
+	if err := ClearTransientFields(obj); err != nil {
+		return err
+	}
+
 	col, err := ctx.Arango.CollectionFor(obj)
 	if err != nil {
 		return err
@@ -227,11 +231,15 @@ func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates Updates) E
 		}
 	}
 
-	if _, err := col.UpdateDocument(ctx.Context, obj.ArangoKey(), updates); err != nil {
+	data, err := ClearTransientData(obj, updates)
+	if err != nil {
+		return err
+	}
+
+	if _, err := col.UpdateDocument(ctx.Context, obj.ArangoKey(), data); err != nil {
 		return NewServerError(err.Error())
 	}
 
-	// TODO: If Loader, Load?
 	return nil
 }
 

@@ -47,11 +47,11 @@ type Claim struct {
 	MultiPremise  bool       `json:"mp"`
 	PremiseRule   int        `json:"mprule"`
 	Truth         float32    `json:"truth"` // Average score from direct opinions
-	PremiseClaims []Claim    `json:"premises,omitempty"`
-	ProArgs       []Argument `json:"proargs"`
-	ConArgs       []Argument `json:"conargs"`
-	Links         []Link     `json:"links,omitempty"`
-	ContextElems  []Context  `json:"contexts,omitempty" skip:"true"`
+	PremiseClaims []Claim    `json:"premises,omitempty" transient:"true"`
+	ProArgs       []Argument `json:"proargs" transient:"true"`
+	ConArgs       []Argument `json:"conargs" transient:"true"`
+	Links         []Link     `json:"links,omitempty" transient:"true"`
+	ContextElems  []Context  `json:"contexts,omitempty" transient:"true"`
 }
 
 // ArangoObject interface
@@ -83,6 +83,8 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 		}
 	}
 
+	contexts := c.ContextElems
+
 	c.Truth = DEFAULT_CLAIM_SCORE
 
 	aerr := CreateArangoObject(ctx, c)
@@ -91,11 +93,8 @@ func (c *Claim) Create(ctx *ServerContext) Error {
 		return aerr
 	}
 
-	// TODO TEST
-	if len(c.ContextElems) > 0 {
-		for _, item := range c.ContextElems {
-			context := Context{}
-			context.Key = item.ArangoKey()
+	if len(contexts) > 0 {
+		for _, context := range contexts {
 			err := context.Load(ctx)
 			if err != nil {
 				ctx.Rollback()
@@ -121,9 +120,7 @@ func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 	c.QueryAt = nil
 	oldVersion := *c
 
-	// This should delete all the old edges, too,
-	// except Inferences and BaseClaimEdges
-	if err := oldVersion.performDelete(ctx); err != nil {
+	if err := DeleteArangoObject(ctx, c); err != nil {
 		ctx.Rollback()
 		return err
 	}
@@ -150,6 +147,10 @@ func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 				Order: edge.Order,
 			}
 			if err := newEdge.Create(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
+			if err := edge.Delete(ctx); err != nil {
 				ctx.Rollback()
 				return err
 			}
@@ -216,32 +217,45 @@ func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 			ctx.Rollback()
 			return err
 		}
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
 	}
 
 	// Contexts
+
+	var newContexts []Context
+	newContexts, _ = updates["contexts"].([]Context)
 	contextEdges, err := oldVersion.ContextEdges(ctx)
 	if err != nil {
 		ctx.Rollback()
 		return err
 	}
 	for _, edge := range contextEdges {
-		if len(c.ContextElems) > 0 {
-			for _, item := range c.ContextElems {
-				if item.ArangoID() == edge.From {
-					newEdge := ContextEdge{Edge: Edge{
-						From: edge.From,
-						To:   c.ArangoID(),
-					}}
-					if err := newEdge.Create(ctx); err != nil {
-						ctx.Rollback()
-						return err
-					}
-					break
-				}
-			}
-		} else {
+		if newContexts == nil {
 			newEdge := ContextEdge{Edge: Edge{
 				From: edge.From,
+				To:   c.ArangoID(),
+			}}
+			if err := newEdge.Create(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
+		}
+		if err := edge.Delete(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+	}
+	if newContexts != nil {
+		for _, context := range newContexts {
+			if err := context.Load(ctx); err != nil {
+				ctx.Rollback()
+				return err
+			}
+			newEdge := ContextEdge{Edge: Edge{
+				From: context.ArangoID(),
 				To:   c.ArangoID(),
 			}}
 			if err := newEdge.Create(ctx); err != nil {
@@ -270,6 +284,10 @@ func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 			Score: edge.Score,
 		}
 		if err := newEdge.Create(ctx); err != nil {
+			ctx.Rollback()
+			return err
+		}
+		if err := edge.Delete(ctx); err != nil {
 			ctx.Rollback()
 			return err
 		}
@@ -533,6 +551,14 @@ func (c *Claim) LoadFull(ctx *ServerContext) Error {
 
 		c.ProArgs = proArgs
 		c.ConArgs = conArgs
+	}
+
+	contexts, err := c.Contexts(ctx)
+	if err != nil {
+		return err
+	}
+	if len(contexts) > 0 {
+		c.ContextElems = contexts
 	}
 
 	return nil

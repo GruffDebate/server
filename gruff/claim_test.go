@@ -27,6 +27,8 @@ func TestCreateClaim(t *testing.T) {
 		MultiPremise: true,
 		PremiseRule:  PREMISE_RULE_ALL,
 	}
+	claim.ProArgs = []Argument{Argument{Title: "I should not be saved"}}
+	claim.ConArgs = []Argument{Argument{Title: "Me neither, bro."}}
 
 	saved := Claim{}
 	saved.ID = claim.ID
@@ -54,6 +56,8 @@ func TestCreateClaim(t *testing.T) {
 	assert.Equal(t, claim.Image, saved.Image)
 	assert.True(t, saved.MultiPremise)
 	assert.Equal(t, PREMISE_RULE_ALL, saved.PremiseRule)
+	assert.Equal(t, []Argument(nil), claim.ProArgs)
+	assert.Equal(t, []Argument(nil), claim.ConArgs)
 
 	err = claim.Create(CTX)
 	assert.Error(t, err)
@@ -73,6 +77,68 @@ func TestCreateClaim(t *testing.T) {
 	claim.Description = ""
 	err = claim.Create(CTX)
 	assert.NoError(t, err)
+}
+
+func TestCreateClaimWithContext(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	context1 := Context{
+		ShortName: "CreateClaimWithContext1",
+		Title:     "Create Claim With Context 1",
+		URL:       "https://docs.microsoft.com/en-us/dotnet/framework/wcf/feature-details/managing-claims-and-authorization-with-the-identity-model",
+	}
+	err := context1.Create(CTX)
+	assert.NoError(t, err)
+
+	context2 := Context{
+		ShortName: "CreateClaimWithContext2",
+		Title:     "Create Claim With Context 2",
+		URL:       "https://github.com/IdentityServer/IdentityServer4/issues/2999",
+	}
+	err = context2.Create(CTX)
+	assert.NoError(t, err)
+
+	context1.Load(CTX)
+	context2.Load(CTX)
+
+	claim := Claim{
+		Title:        "For this claim, I only care about creating with Contexts",
+		ContextElems: []Context{context1, context2},
+	}
+	err = claim.Create(CTX)
+	assert.NoError(t, err)
+	saved := Claim{}
+	saved.ID = claim.ID
+	err = saved.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, saved.Key)
+	assert.NotEmpty(t, saved.ID)
+	assert.NotEmpty(t, saved.CreatedAt)
+	assert.NotEmpty(t, saved.UpdatedAt)
+	assert.Equal(t, CTX.UserContext.ArangoID(), saved.CreatedByID)
+	assert.Nil(t, saved.DeletedAt)
+	assert.Equal(t, claim.Title, saved.Title)
+	assert.Equal(t, claim.Description, saved.Description)
+	assert.Equal(t, claim.Negation, saved.Negation)
+	assert.Equal(t, claim.Question, saved.Question)
+	assert.Equal(t, claim.Note, saved.Note)
+	assert.Equal(t, claim.Image, saved.Image)
+	assert.False(t, saved.MultiPremise)
+	assert.Equal(t, PREMISE_RULE_NONE, saved.PremiseRule)
+	assert.Equal(t, []Argument(nil), saved.ProArgs)
+	assert.Equal(t, []Argument(nil), saved.ConArgs)
+	assert.Equal(t, []Context{context1, context2}, saved.ContextElems)
+
+	contexts, err := claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, []Context{context1, context2}, contexts)
+
+	contextEdges, err := claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(contextEdges))
+	assert.Equal(t, context1.ArangoID(), contextEdges[0].From)
+	assert.Equal(t, context2.ArangoID(), contextEdges[1].From)
 }
 
 func TestClaimAddPremise(t *testing.T) {
@@ -353,8 +419,9 @@ func TestClaimUpdate(t *testing.T) {
 	origClaimKey := claim.ArangoKey()
 
 	updates := map[string]interface{}{
-		"title": "New Title",
-		"desc":  "New Description",
+		"title":   "New Title",
+		"desc":    "New Description",
+		"proargs": []Argument{Argument{Title: "You'd better not set me"}},
 	}
 	err = claim.Update(CTX, updates)
 	assert.NoError(t, err)
@@ -368,6 +435,11 @@ func TestClaimUpdate(t *testing.T) {
 	assert.NotEqual(t, origClaimKey, claim.ArangoKey())
 	assert.Equal(t, DEFAULT_USER.ArangoID(), claim.CreatedByID)
 	assert.Equal(t, CTX.UserContext.ArangoID(), claim.UpdatedByID)
+	assert.Equal(t, []Argument(nil), claim.ProArgs)
+
+	err = mpClaim.Load(CTX)
+	assert.NoError(t, err)
+	assert.True(t, mpClaim.MultiPremise)
 
 	origClaim := Claim{}
 	origClaim.Key = origClaimKey
@@ -470,6 +542,64 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, ctx2.ArangoID(), ces[1].From)
 	assert.Equal(t, origClaim.ArangoID(), ces[1].To)
 	assert.NotNil(t, ces[1].DeletedAt)
+
+	olderMpClaim.DeletedAt = nil
+
+	// Change Contexts as part of the update
+	beforeCtxChange := time.Now()
+
+	ctx3 := Context{ShortName: "UpdateClaim Third", Title: "Being last isn't everything", URL: "https://en.wikipedia.org/wiki/Third"}
+	err = ctx3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+
+	updates = map[string]interface{}{
+		"title":    "Newer Title",
+		"contexts": []Context{ctx1, ctx3},
+	}
+	err = claim.Update(CTX, updates)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, "Newer Title", claim.Title)
+
+	ces, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ces))
+	assert.Equal(t, ctx1.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+	assert.Equal(t, ctx3.ArangoID(), ces[1].From)
+	assert.Equal(t, claim.ArangoID(), ces[1].To)
+
+	ctxs, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ctxs))
+	assert.Equal(t, ctx1.ArangoID(), ctxs[0].ArangoID())
+	assert.Equal(t, ctx3.ArangoID(), ctxs[1].ArangoID())
+
+	claim.QueryAt = &beforeCtxChange
+	err = claim.Load(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, "New Title", claim.Title)
+
+	ces, err = claim.ContextEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ces))
+	assert.Equal(t, ctx1.ArangoID(), ces[0].From)
+	assert.Equal(t, claim.ArangoID(), ces[0].To)
+	assert.Equal(t, ctx2.ArangoID(), ces[1].From)
+	assert.Equal(t, claim.ArangoID(), ces[1].To)
+
+	ctxs, err = claim.Contexts(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ctxs))
+	assert.Equal(t, ctx1.ArangoID(), ctxs[0].ArangoID())
+	assert.Equal(t, ctx2.ArangoID(), ctxs[1].ArangoID())
 }
 
 func TestClaimUpdateMP(t *testing.T) {
@@ -1428,6 +1558,43 @@ func TestClaimLoadFull(t *testing.T) {
 	assert.Equal(t, 1, len(claim.ConArgs))
 	assert.Equal(t, arg3, claim.ProArgs[0])
 	assert.Equal(t, arg2, claim.ConArgs[0])
+	assert.Equal(t, 0, len(claim.ContextElems))
+
+	context1 := Context{
+		ShortName: "GotNoReason",
+		Title:     "No reason to liiiiiiiiiive",
+		URL:       "https://www.youtube.com/watch?v=8bfyS-S-IJs",
+	}
+	err = context1.Create(CTX)
+	assert.NoError(t, err)
+
+	context1.Load(CTX)
+
+	err = claim.AddContext(CTX, context1)
+	assert.NoError(t, err)
+
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 0, len(claim.PremiseClaims))
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, 1, len(claim.ConArgs))
+	assert.Equal(t, arg3, claim.ProArgs[0])
+	assert.Equal(t, arg2, claim.ConArgs[0])
+	assert.Equal(t, 1, len(claim.ContextElems))
+	assert.Equal(t, context1, claim.ContextElems[0])
+
+	claim.QueryAt = &arg1.CreatedAt
+	err = claim.LoadFull(CTX)
+	assert.NoError(t, err)
+	assert.Nil(t, claim.DeletedAt)
+	assert.Equal(t, "This is the Claim LoadAll test claim", claim.Title)
+	assert.Equal(t, 0, len(claim.PremiseClaims))
+	assert.Equal(t, 1, len(claim.ProArgs))
+	assert.Equal(t, 0, len(claim.ConArgs))
+	assert.Equal(t, arg1, claim.ProArgs[0])
+	assert.Equal(t, 0, len(claim.ContextElems))
 }
 
 func TestClaimLoadFullMP(t *testing.T) {
@@ -2664,6 +2831,7 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	arg2.Load(CTX)
 	mpClaim.QueryAt = &startTime
 	mpClaim.Load(CTX)
+	mpClaim.QueryAt = &startTime
 
 	premiseEdges, err = claim.PremiseEdges(CTX)
 	assert.NoError(t, err)
