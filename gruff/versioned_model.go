@@ -103,7 +103,7 @@ func SetID(item interface{}, id string) Error {
 }
 
 type Versioner interface {
-	version(*ServerContext) Error
+	version(*ServerContext, Updates) Error
 }
 
 func IsVersioner(t reflect.Type) bool {

@@ -16,7 +16,6 @@ func SignUp(c echo.Context) error {
 	u := gruff.User{}
 
 	if err := c.Bind(&u); err != nil {
-		fmt.Println(err)
 		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 

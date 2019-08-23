@@ -159,7 +159,16 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) Error {
 				return NewPermissionError("field is unsettable", data)
 			}
 			destType := vField.Type()
-			if destType.Kind() == reflect.Ptr {
+			switch destType.Kind() {
+			case reflect.Array,
+				reflect.Chan,
+				reflect.Func,
+				reflect.Map,
+				reflect.Slice:
+				// Not supported
+				// TODO: User support.SetField
+				return nil
+			case reflect.Ptr:
 				destType = destType.Elem()
 			}
 			support.SetValue(vField.Addr(), destType, newVal)
@@ -267,4 +276,57 @@ func UserIDField(t reflect.Type) (field *reflect.StructField, dbFieldName string
 		dbFieldName = "creator"
 	}
 	return
+}
+
+func ClearTransientFields(item interface{}) Error {
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return NewServerError("Cannot clear values on a nil item")
+		}
+		v = v.Elem()
+	}
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag
+		transient := tag.Get("transient")
+		if transient == "true" {
+			vField := v.Field(i)
+			if !vField.CanSet() {
+				return NewServerError("Cannot clear values on an immutable object")
+			}
+			support.SetZeroValue(vField)
+		}
+	}
+
+	return nil
+}
+
+func ClearTransientData(item interface{}, m map[string]interface{}) (map[string]interface{}, Error) {
+	data := map[string]interface{}{}
+
+	for key, value := range m {
+		data[key] = value
+	}
+
+	v := reflect.ValueOf(item)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return data, NewServerError("Cannot clear values on a nil item")
+		}
+		v = v.Elem()
+	}
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag
+		jsonName := support.JsonName(f)
+		transient := tag.Get("transient")
+		if transient == "true" {
+			delete(data, jsonName)
+		}
+	}
+
+	return data, nil
 }

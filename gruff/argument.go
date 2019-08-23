@@ -53,11 +53,11 @@ const DEFAULT_ARGUMENT_SCORE float32 = 1.00
 type Argument struct {
 	VersionedModel
 	TargetClaimID    *string    `json:"targetClaimId,omitempty"`
-	TargetClaim      *Claim     `json:"targetClaim,omitempty"`
+	TargetClaim      *Claim     `json:"targetClaim,omitempty" transient:"true"`
 	TargetArgumentID *string    `json:"targetArgId,omitempty"`
-	TargetArgument   *Argument  `json:"targetArg,omitempty"`
+	TargetArgument   *Argument  `json:"targetArg,omitempty" transient:"true"`
 	ClaimID          string     `json:"claimId"`
-	Claim            *Claim     `json:"claim,omitempty"`
+	Claim            *Claim     `json:"claim,omitempty" transient:"true"`
 	Title            string     `json:"title" valid:"length(3|1000)"`
 	Negation         string     `json:"negation"`
 	Question         string     `json:"question"`
@@ -66,8 +66,8 @@ type Argument struct {
 	Pro              bool       `json:"pro"`
 	Relevance        float32    `json:"relevance"`
 	Str              float32    `json:"strength"`
-	ProArgs          []Argument `json:"proargs"`
-	ConArgs          []Argument `json:"conargs"`
+	ProArgs          []Argument `json:"proargs" transient:"true"`
+	ConArgs          []Argument `json:"conargs" transient:"true"`
 }
 
 // ArangoObject interface
@@ -89,6 +89,7 @@ func (a Argument) DefaultQueryParameters() ArangoQueryParameters {
 }
 
 func (a *Argument) Create(ctx *ServerContext) Error {
+	var target ArangoObject
 	if a.TargetClaimID != nil {
 		claim := Claim{}
 		claim.ID = *a.TargetClaimID
@@ -115,7 +116,7 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 			return err
 		}
 
-		a.TargetClaim = &claim
+		target = &claim
 	} else if a.TargetArgumentID != nil {
 		arg := Argument{}
 		arg.ID = *a.TargetArgumentID
@@ -130,7 +131,7 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 			return err
 		}
 
-		a.TargetArgument = &arg
+		target = &arg
 	}
 
 	var baseClaim Claim
@@ -174,13 +175,9 @@ func (a *Argument) Create(ctx *ServerContext) Error {
 	}
 
 	inf := Inference{Edge: Edge{
-		To: a.ArangoID(),
+		From: target.ArangoID(),
+		To:   a.ArangoID(),
 	}}
-	if a.TargetClaimID != nil {
-		inf.From = a.TargetClaim.ArangoID()
-	} else {
-		inf.From = a.TargetArgument.ArangoID()
-	}
 	if err := inf.Create(ctx); err != nil {
 		ctx.Rollback()
 		return err
@@ -193,7 +190,7 @@ func (a *Argument) Update(ctx *ServerContext, updates Updates) Error {
 	return UpdateArangoObject(ctx, a, updates)
 }
 
-func (a *Argument) version(ctx *ServerContext) Error {
+func (a *Argument) version(ctx *ServerContext, updates Updates) Error {
 	oldVersion := *a
 
 	// Don't use the standard Delete method because it deletes arguments, too
