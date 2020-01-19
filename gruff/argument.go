@@ -720,6 +720,26 @@ func (a Argument) BaseClaimEdge(ctx *ServerContext) (BaseClaimEdge, Error) {
 	return edge, err
 }
 
+func (a *Argument) LoadTarget(ctx *ServerContext) Error {
+	var err Error
+
+	if a.TargetClaimID != nil {
+		t := Claim{}
+		t.ID = *a.TargetClaimID
+		t.QueryAt = a.QueryAt
+		err = t.Load(ctx)
+		a.TargetClaim = &t
+	} else if a.TargetArgumentID != nil {
+		t := Argument{}
+		t.ID = *a.TargetArgumentID
+		t.QueryAt = a.QueryAt
+		err = t.Load(ctx)
+		a.TargetArgument = &t
+	}
+
+	return err
+}
+
 // Curation
 
 // TODO: Test

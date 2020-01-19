@@ -382,6 +382,11 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 
+	pargs, err := claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
+
 	args, err := claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(args))
@@ -472,6 +477,11 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 	assert.Nil(t, bces[0].DeletedAt)
 
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
+
 	args, err = claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(args))
@@ -520,6 +530,11 @@ func TestClaimUpdate(t *testing.T) {
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
 	assert.Equal(t, origClaim.ArangoID(), bces[0].To)
 	assert.NotNil(t, bces[0].DeletedAt)
+
+	pargs, err = origClaim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
 
 	olderMpClaim := Claim{}
 	olderMpClaim.Key = mpClaim.Key
@@ -722,6 +737,11 @@ func TestClaimUpdateMP(t *testing.T) {
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 
+	pargs, err := claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
+
 	args, err := claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(args))
@@ -787,6 +807,11 @@ func TestClaimUpdateMP(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 	assert.Nil(t, bces[0].DeletedAt)
 
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
+
 	args, err = claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(args))
@@ -827,6 +852,11 @@ func TestClaimUpdateMP(t *testing.T) {
 	assert.Equal(t, argDC1.ArangoID(), bces[0].From)
 	assert.Equal(t, origClaim.ArangoID(), bces[0].To)
 	assert.NotNil(t, bces[0].DeletedAt)
+
+	pargs, err = origClaim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
 
 	olderMpClaim := Claim{}
 	olderMpClaim.Key = mpClaim.Key
@@ -1926,6 +1956,11 @@ func TestClaimDeleteLoop(t *testing.T) {
 	assert.Equal(t, claim.ArangoID(), baseClaimEdges[0].To)
 	assert.NotNil(t, baseClaimEdges[0].DeletedAt)
 
+	pargs, err := claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argDC1.ArangoID(), pargs[0].ArangoID())
+
 	args, err := claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(args))
@@ -2721,6 +2756,11 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 
+	pargs, err := claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), pargs[0].ArangoID())
+
 	args, err := claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(args))
@@ -2776,6 +2816,11 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	assert.Equal(t, 1, len(bces))
 	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), pargs[0].ArangoID())
 
 	args, err = claim.Arguments(CTX)
 	assert.NoError(t, err)
@@ -2851,6 +2896,11 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	assert.Equal(t, argToAnotherClaim.ArangoID(), bces[0].From)
 	assert.Equal(t, claim.ArangoID(), bces[0].To)
 
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, argToAnotherClaim.ArangoID(), pargs[0].ArangoID())
+
 	args, err = claim.Arguments(CTX)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(args))
@@ -2874,4 +2924,187 @@ func TestClaimConvertToMultiPremise(t *testing.T) {
 	assert.Equal(t, 1, len(ctxs))
 	assert.Equal(t, context.ArangoID(), ctxs[0].ArangoID())
 
+}
+
+func TestClaimParentArguments(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:        "I dare you to doubt my check of parent args",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is all about parent args.",
+		Image:        "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
+		MultiPremise: false,
+		PremiseRule:  PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	pClaim1 := Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = pClaim1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	pClaim2 := Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = pClaim2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	pClaim3 := Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = pClaim3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Check parent args
+	bces, err := claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(bces))
+
+	pargs, err := claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(pargs))
+
+	arg1 := Argument{
+		TargetClaimID: &pClaim1.ID,
+		ClaimID:       claim.ID,
+		Title:         "Let's create a new argument",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	// Check parent args
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+
+	arg2 := Argument{
+		TargetClaimID: &pClaim2.ID,
+		ClaimID:       claim.ID,
+		Title:         "I beg to differ",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	twoArgTime := time.Now()
+
+	// Check parent args
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+	assert.Equal(t, arg2.ArangoID(), bces[1].From)
+	assert.Equal(t, claim.ArangoID(), bces[1].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), pargs[1].ArangoID())
+
+	arg3 := Argument{
+		TargetClaimID: &pClaim3.ID,
+		ClaimID:       claim.ID,
+		Title:         "I want to get away",
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+	threeArgTime := time.Now()
+
+	// Check parent args
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+	assert.Equal(t, arg3.ArangoID(), bces[1].From)
+	assert.Equal(t, claim.ArangoID(), bces[1].To)
+	assert.Equal(t, arg2.ArangoID(), bces[2].From)
+	assert.Equal(t, claim.ArangoID(), bces[2].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), pargs[1].ArangoID())
+	assert.Equal(t, arg3.ArangoID(), pargs[2].ArangoID())
+
+	// Delete one parent
+	err = arg2.Delete(CTX)
+	CTX.RequestAt = nil
+	assert.NoError(t, err)
+
+	// Check parent args
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+	assert.Equal(t, arg3.ArangoID(), bces[1].From)
+	assert.Equal(t, claim.ArangoID(), bces[1].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+	assert.Equal(t, arg3.ArangoID(), pargs[1].ArangoID())
+
+	// Back in time
+	claim.QueryAt = &threeArgTime
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+	assert.Equal(t, arg2.ArangoID(), bces[1].From)
+	assert.Equal(t, claim.ArangoID(), bces[1].To)
+	assert.Equal(t, arg3.ArangoID(), bces[2].From)
+	assert.Equal(t, claim.ArangoID(), bces[2].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), pargs[1].ArangoID())
+	assert.Equal(t, arg3.ArangoID(), pargs[2].ArangoID())
+
+	// Farther back in time
+	claim.QueryAt = &twoArgTime
+	bces, err = claim.BaseClaimEdges(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(bces))
+	assert.Equal(t, arg1.ArangoID(), bces[0].From)
+	assert.Equal(t, claim.ArangoID(), bces[0].To)
+	assert.Equal(t, arg2.ArangoID(), bces[1].From)
+	assert.Equal(t, claim.ArangoID(), bces[1].To)
+
+	pargs, err = claim.ParentArguments(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(pargs))
+	assert.Equal(t, arg1.ArangoID(), pargs[0].ArangoID())
+	assert.Equal(t, arg2.ArangoID(), pargs[1].ArangoID())
 }

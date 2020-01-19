@@ -455,6 +455,85 @@ func TestAddPremiseRemovePremise(t *testing.T) {
 	assert.Equal(t, premise2.ArangoID(), premises[0].ArangoID())
 }
 
+func TestListParentArguments(t *testing.T) {
+	setup()
+	defer teardown()
+
+	claim := gruff.Claim{
+		Title:        "I dare you to doubt my check of parent args",
+		Description:  "I am true. Woe be the person that doubts my veracity",
+		Negation:     "I dare you to accept me",
+		Question:     "Do you dare to doubt me?",
+		Note:         "This Claim is all about parent args.",
+		Image:        "https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/NoDoubtCover.png/220px-NoDoubtCover.png",
+		MultiPremise: false,
+		PremiseRule:  gruff.PREMISE_RULE_NONE,
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	pClaim1 := gruff.Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = pClaim1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	pClaim2 := gruff.Claim{
+		Title:       "So very far away",
+		Description: "So distant, you cannot see me.",
+	}
+	err = pClaim2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg1 := gruff.Argument{
+		TargetClaimID: &pClaim1.ID,
+		ClaimID:       claim.ID,
+		Title:         "Let's create a new argument",
+		Pro:           true,
+	}
+	err = arg1.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg2 := gruff.Argument{
+		TargetClaimID: &pClaim2.ID,
+		ClaimID:       claim.ID,
+		Title:         "I beg to differ",
+		Pro:           false,
+	}
+	err = arg2.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	arg3 := gruff.Argument{
+		TargetArgumentID: &arg2.ID,
+		ClaimID:          claim.ID,
+		Title:            "I plead to differ",
+		Pro:              false,
+	}
+	err = arg3.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	targarg2 := arg2
+
+	arg1.TargetClaim = &pClaim1
+	arg2.TargetClaim = &pClaim2
+	arg3.TargetArgument = &targarg2
+	args := []gruff.Argument{arg1, arg2, arg3}
+	expected, _ := json.Marshal(args)
+
+	r := New(tokenForTestUser(DEFAULT_USER))
+	r.GET(fmt.Sprintf("/api/claims/%s/parents", claim.ID))
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusOK, res.Code)
+	assert.JSONEq(t, string(expected), res.Body.String())
+}
+
 /*
 func TestSetTruthScore(t *testing.T) {
 	setup()

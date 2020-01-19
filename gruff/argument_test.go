@@ -1322,3 +1322,101 @@ func TestArgumentMoveTo(t *testing.T) {
 	assert.Equal(t, 1, len(claim.ConArgs))
 	assert.Equal(t, arg2.ArangoID(), claim.ConArgs[0].ArangoID())
 }
+
+func TestArgumentLoadTarget(t *testing.T) {
+	setupDB()
+	defer teardownDB()
+
+	claim := Claim{
+		Title:       "Target claim in load target test",
+		Description: "Claims in general should be true or false",
+		Negation:    "Let's not...",
+		Question:    "Should we create a new Claim?",
+	}
+	err := claim.Create(CTX)
+	assert.NoError(t, err)
+
+	targarg := Argument{
+		TargetClaimID: &claim.ID,
+		Title:         "Daenerys",
+		Description:   "Queen of dragons",
+		Negation:      "Not Queen",
+		Question:      "Will she be queen?",
+		Note:          "Dracarys",
+		Pro:           true,
+	}
+	err = targarg.Create(CTX)
+	assert.NoError(t, err)
+
+	arg := Argument{
+		TargetArgumentID: &targarg.ID,
+		Title:            "Let's create a new argument",
+		Description:      "Arguments are all about connecting things",
+		Negation:         "Lettuce not...",
+		Question:         "Should we create a new Argument?",
+		Note:             "I'm not sure that there should be notes for this",
+		Pro:              true,
+	}
+	err = arg.Create(CTX)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	origArgID := targarg.ArangoID()
+	origArgTitle := targarg.Title
+	origClaimID := claim.ArangoID()
+	origClaimTitle := claim.Title
+	startTime := time.Now()
+
+	assert.Nil(t, arg.TargetArgument)
+	assert.Nil(t, targarg.TargetClaim)
+
+	err = arg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, targarg.ArangoID(), arg.TargetArgument.ArangoID())
+	assert.Equal(t, targarg.Title, arg.TargetArgument.Title)
+
+	err = targarg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), targarg.TargetClaim.ArangoID())
+	assert.Equal(t, claim.Title, targarg.TargetClaim.Title)
+
+	// Update targets
+	updates := map[string]interface{}{
+		"title": "Load Target updated claim title",
+		"desc":  "New Description",
+	}
+	err = claim.Update(CTX, updates)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	updates = map[string]interface{}{
+		"title": "Load Target updated arg title",
+		"desc":  "New Description",
+	}
+	err = targarg.Update(CTX, updates)
+	assert.NoError(t, err)
+	CTX.RequestAt = nil
+
+	err = arg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, targarg.ArangoID(), arg.TargetArgument.ArangoID())
+	assert.Equal(t, targarg.Title, arg.TargetArgument.Title)
+
+	err = targarg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, claim.ArangoID(), targarg.TargetClaim.ArangoID())
+	assert.Equal(t, claim.Title, targarg.TargetClaim.Title)
+
+	// Query back in tim
+	arg.QueryAt = &startTime
+	err = arg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, origArgID, arg.TargetArgument.ArangoID())
+	assert.Equal(t, origArgTitle, arg.TargetArgument.Title)
+
+	targarg.QueryAt = &startTime
+	err = targarg.LoadTarget(CTX)
+	assert.NoError(t, err)
+	assert.Equal(t, origClaimID, targarg.TargetClaim.ArangoID())
+	assert.Equal(t, origClaimTitle, targarg.TargetClaim.Title)
+}

@@ -987,6 +987,27 @@ func (c Claim) BaseClaimEdges(ctx *ServerContext) ([]BaseClaimEdge, Error) {
 	return edges, err
 }
 
+func (c Claim) ParentArguments(ctx *ServerContext) ([]Argument, Error) {
+	args := []Argument{}
+
+	bindVars := BindVars{
+		"claim": c.ArangoID(),
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                 FOR a IN %s
+                                   FILTER obj._to == @claim
+                                      AND obj._from == a._id
+                                   %s
+                                   SORT a.start ASC
+                                   RETURN a`,
+		BaseClaimEdge{}.CollectionName(),
+		Argument{}.CollectionName(),
+		c.DateFilter(bindVars),
+	)
+	err := FindArangoObjects(ctx, query, bindVars, &args)
+	return args, err
+}
+
 // Contexts
 func (c *Claim) AddContext(ctx *ServerContext, context Context) Error {
 	c.QueryAt = nil

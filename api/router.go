@@ -82,6 +82,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	public.GET("/claims", ListClaims("new"))
 	public.GET("/claims/top", ListClaims("top"))
 	public.GET("/claims/:id", Get)
+	public.GET("/claims/:id/parents", ListParentArguments)
 	private.POST("/claims", Create)
 	private.PUT("/claims/:id", Update)
 	private.DELETE("/claims/:id", Delete)

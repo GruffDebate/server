@@ -174,6 +174,37 @@ func RemovePremise(c echo.Context) error {
 	return c.JSON(http.StatusOK, claim)
 }
 
+func ListParentArguments(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	// TODO: Handle timestamp query
+	id := c.Param("id")
+	if id == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	}
+
+	claim := gruff.Claim{}
+	claim.ID = id
+	if err := claim.Load(ctx); err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	parents, err := claim.ParentArguments(ctx)
+	if err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	// Need to return with parent targets loaded
+	for i, a := range parents {
+		if err := a.LoadTarget(ctx); err != nil {
+			return AddError(ctx, c, err)
+		}
+		parents[i] = a
+	}
+
+	return c.JSON(http.StatusOK, parents)
+}
+
 /*
 func SetScore(c echo.Context) error {
 	ctx := ServerContext(c)
