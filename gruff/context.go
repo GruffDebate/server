@@ -206,6 +206,22 @@ func FindContext(ctx *ServerContext, contextArangoId string) (Context, Error) {
 	return context, err
 }
 
+func SearchContext(ctx *ServerContext, contextText string) ([]Context, Error) {
+	contexts := []Context{}
+	bindVars := BindVars{
+		"name":  "%" + contextText + "%",
+		"title": "%" + contextText + "%",
+	}
+	query := fmt.Sprintf(`
+		FOR obj IN %s
+		FILTER obj.name like @name OR obj.title like @title
+		RETURN obj
+	`, Context{}.CollectionName())
+
+	err := FindArangoObjects(ctx, query, bindVars, &contexts)
+	return contexts, err
+}
+
 func (c *Context) Load(ctx *ServerContext) Error {
 	var err Error
 	if c.ArangoKey() != "" {

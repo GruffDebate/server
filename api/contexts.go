@@ -1,11 +1,10 @@
 package api
 
 import (
-	_ "net/http"
+	"net/http"
 
-	_ "github.com/GruffDebate/server/gruff"
-	_ "github.com/badoux/goscraper"
-	_ "github.com/labstack/echo"
+	"github.com/GruffDebate/server/gruff"
+	"github.com/labstack/echo"
 )
 
 /*
@@ -44,3 +43,19 @@ func ListContext(c echo.Context) error {
 	return c.JSON(http.StatusOK, contexts)
 }
 */
+
+func SearchContext(c echo.Context) error {
+	ctx := ServerContext(c)
+
+	query := c.QueryParam("query")
+	if query == "" {
+		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
+	}
+
+	contexts, err := gruff.SearchContext(ctx, query)
+	if err != nil {
+		return AddError(ctx, c, err)
+	}
+
+	return c.JSON(http.StatusOK, contexts)
+}
