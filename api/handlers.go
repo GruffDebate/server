@@ -88,6 +88,7 @@ func Update(c echo.Context) error {
 		return AddError(ctx, c, gruff.NewServerError(err.Error()))
 	}
 
+	fmt.Printf("-------------------updates from put: %+v\n", updates)
 	if gruff.IsVersionedModel(ctx.Type) {
 		if err := validateKeyParameter(c, obj, updates); err != nil {
 			return AddError(ctx, c, err)
@@ -118,11 +119,13 @@ func Delete(c echo.Context) error {
 
 	id := c.Param("id")
 	if id == "" {
+		fmt.Println("--------------------------No ID")
 		return AddError(ctx, c, gruff.NewNotFoundError("Not Found"))
 	}
 
 	item, err := loadItem(c, id)
 	if err != nil {
+		fmt.Println("--------------------------Couldn't load the item")
 		return AddError(ctx, c, err)
 	}
 
@@ -130,6 +133,7 @@ func Delete(c echo.Context) error {
 
 	err = obj.Delete(ctx)
 	if err != nil {
+		fmt.Println("--------------------------Couldn't delete the item")
 		return AddError(ctx, c, err)
 	}
 

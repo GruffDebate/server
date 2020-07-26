@@ -68,6 +68,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 	private.POST("/contexts", Create)
 	private.PUT("/contexts/:id", Update)
 	private.DELETE("/contexts/:id", Delete)
+	public.GET("/contexts/search", SearchContexts)
 
 	// TODO: Should contexts be added using the short name instead of the id?
 	private.POST("/claims/:parentId/contexts/:id", AddContext)

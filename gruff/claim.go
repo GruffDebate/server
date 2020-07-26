@@ -454,7 +454,7 @@ func (c Claim) ValidateForUpdate(updates Updates) Error {
 	if c.DeletedAt != nil {
 		return NewBusinessError("A claim that has already been deleted, or has a newer version, cannot be modified")
 	}
-	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
+	if err := SetJsonValuesOnStruct(&c, updates, false); err != nil {
 		return err
 	}
 	return c.ValidateForCreate()

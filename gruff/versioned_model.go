@@ -10,13 +10,13 @@ import (
 )
 
 type VersionedModel struct {
-	Key         string     `json:"_key"`
-	ID          string     `json:"id"`
-	CreatedAt   time.Time  `json:"start"`
-	UpdatedAt   time.Time  `json:"mod"`
-	DeletedAt   *time.Time `json:"end"`
-	CreatedByID string     `json:"creator"`
-	UpdatedByID string     `json:"editor,omitempty"`
+	Key         string     `json:"_key" settable:"false"`
+	ID          string     `json:"id" settable:"false"`
+	CreatedAt   time.Time  `json:"start" settable:"false"`
+	UpdatedAt   time.Time  `json:"mod" settable:"false"`
+	DeletedAt   *time.Time `json:"end" settable:"false"`
+	CreatedByID string     `json:"creator" settable:"false"`
+	UpdatedByID string     `json:"editor,omitempty" settable:"false"`
 	QueryAt     *time.Time `json:"-"`
 }
 
@@ -60,6 +60,8 @@ func (vm VersionedModel) DateFilter(bindVars map[string]interface{}) string {
 		query := fmt.Sprintf("FILTER obj.start <= @query_at AND (obj.end == null OR obj.end > @query_at)")
 		return query
 	} else {
+		// What feature was this for??
+		//return ""
 		return "FILTER obj.end == null"
 	}
 }

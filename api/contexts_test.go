@@ -1,15 +1,68 @@
 package api
 
 import (
-	_ "encoding/json"
-	_ "fmt"
-	_ "net/http"
-	_ "testing"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+	"testing"
 
-	_ "github.com/GruffDebate/server/gruff"
-	_ "github.com/badoux/goscraper"
-	_ "github.com/stretchr/testify/assert"
+	"github.com/GruffDebate/server/gruff"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestSearchContexts(t *testing.T) {
+	setup()
+	defer teardown()
+
+	ctx1 := gruff.Context{
+		ShortName:   "test",
+		Title:       "A Context whose title doesn't match the short name",
+		Description: "This Context was created just for testing",
+		URL:         "https://canonicaldebate.com",
+	}
+	ctx2 := gruff.Context{
+		ShortName:   "dwarf",
+		Title:       "Dwarf",
+		Description: "A humanoid creature that loves beards, beer and battle",
+		URL:         "https://lotr.com/Dwarf",
+	}
+	ctx3 := gruff.Context{
+		ShortName:   "hobbit",
+		Title:       "Hobbit",
+		Description: "A humanoid creature that loves food, friends and food",
+		URL:         "https://lotr.com/Hobbit",
+	}
+	ctx4 := gruff.Context{
+		ShortName:   "elf",
+		Title:       "Elf",
+		Description: "A humanoid creature that is much too tall",
+		URL:         "https://lotr.com/Elf",
+	}
+	err := ctx1.Create(CTX)
+	assert.NoError(t, err)
+	err = ctx2.Create(CTX)
+	assert.NoError(t, err)
+	err = ctx3.Create(CTX)
+	assert.NoError(t, err)
+	err = ctx4.Create(CTX)
+	assert.NoError(t, err)
+
+	ctxs := []gruff.Context{ctx2, ctx4}
+	expected, _ := json.Marshal(ctxs)
+
+	r := New(tokenForTestUser(DEFAULT_USER))
+	r.GET(fmt.Sprintf("/api/contexts/search?query=f"))
+	res, _ := r.Run(Router())
+	assert.Equal(t, http.StatusOK, res.Code)
+
+	actualCtxs := []gruff.Context{}
+	jerr := json.Unmarshal([]byte(res.Body.String()), &actualCtxs)
+	assert.NoError(t, jerr)
+	sort.Slice(actualCtxs, func(i, j int) bool { return actualCtxs[i].Title < actualCtxs[j].Title })
+	actual, _ := json.Marshal(actualCtxs)
+	assert.JSONEq(t, string(expected), string(actual))
+}
 
 /*
 func TestListContexts(t *testing.T) {

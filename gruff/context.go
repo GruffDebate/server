@@ -2,6 +2,7 @@ package gruff
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/GruffDebate/server/support"
 	arango "github.com/arangodb/go-driver"
@@ -73,11 +74,8 @@ func (c Context) DefaultQueryParameters() ArangoQueryParameters {
 	return DEFAULT_QUERY_PARAMETERS.Merge(params)
 }
 
-// TODO: Test validations, etc.
 func (c *Context) Create(ctx *ServerContext) Error {
 	// TODO: Unique indexes? Unique checks?
-
-	// TODO: Test
 	return CreateArangoObject(ctx, c)
 }
 
@@ -150,7 +148,7 @@ func (c Context) ValidateForCreate() Error {
 }
 
 func (c Context) ValidateForUpdate(updates Updates) Error {
-	if err := SetJsonValuesOnStruct(&c, updates); err != nil {
+	if err := SetJsonValuesOnStruct(&c, updates, false); err != nil {
 		return err
 	}
 	return c.ValidateForCreate()
@@ -222,4 +220,25 @@ func (c *Context) LoadFull(ctx *ServerContext) Error {
 		return err
 	}
 	return nil
+}
+
+func SearchContexts(ctx *ServerContext, term string) ([]Context, Error) {
+	contexts := []Context{}
+	if term == "" {
+		return contexts, NewBusinessError("Query term required")
+	}
+
+	term = strings.ToLower(term)
+	term = strings.ReplaceAll(term, "%", "\\%")
+	bindVars := BindVars{
+		"term": "%" + term + "%",
+	}
+	query := fmt.Sprintf(`FOR obj IN %s
+                                      FILTER lower(obj.title) LIKE @term
+                                          OR lower(obj.name) LIKE @term
+                                      RETURN obj`,
+		Context{}.CollectionName(),
+	)
+	err := FindArangoObjects(ctx, query, bindVars, &contexts)
+	return contexts, err
 }

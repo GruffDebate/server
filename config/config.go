@@ -48,6 +48,16 @@ func Init() {
 	if os.Getenv("ARANGO_PASS") == "" {
 		os.Setenv("ARANGO_PASS", CONFIGURATIONS["ARANGO_PASS"])
 	}
+
+	fmt.Println("GRUFF_ENV=", os.Getenv("GRUFF_ENV"))
+	fmt.Println("GRUFF_NAME=", os.Getenv("GRUFF_NAME"))
+	fmt.Println("PORT=", os.Getenv("PORT"))
+	fmt.Println("JWT_KEY_SIGNIN=", os.Getenv("JWT_KEY_SIGNIN"))
+	fmt.Println("JWT_TOKEN_EXPIRATION=", os.Getenv("JWT_TOKEN_EXPIRATION"))
+	fmt.Println("ARANGO_ENDPOINT=", os.Getenv("ARANGO_ENDPOINT"))
+	fmt.Println("ARANGO_DB=", os.Getenv("ARANGO_DB"))
+	fmt.Println("ARANGO_USER=", os.Getenv("ARANGO_USER"))
+	fmt.Println("ARANGO_PASS=", os.Getenv("ARANGO_PASS"))
 }
 
 func InitDB() arango.Database {

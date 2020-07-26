@@ -15,4 +15,5 @@ require (
 	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5
+	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421
 )

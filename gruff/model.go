@@ -12,9 +12,9 @@ import (
 )
 
 type Model struct {
-	Key       string     `json:"_key"`
-	CreatedAt time.Time  `json:"start"`
-	UpdatedAt time.Time  `json:"mod"`
+	Key       string     `json:"_key" settable:"false"`
+	CreatedAt time.Time  `json:"start" settable:"false"`
+	UpdatedAt time.Time  `json:"mod" settable:"false"`
 	DeletedAt *time.Time `json:"end" settable:"false"`
 }
 
@@ -145,6 +145,7 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) Error {
 		v = v.Elem()
 	}
 	t := v.Type()
+	// TODO: This method doesn't handle nested structs. Not an issue yet, since model fields are not settable.
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		tag := f.Tag
@@ -179,10 +180,12 @@ func SetByJsonTag(item interface{}, jsonKey string, newVal interface{}) Error {
 	return NewNotFoundError("field not found", data)
 }
 
-func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}) Error {
+func SetJsonValuesOnStruct(item interface{}, values map[string]interface{}, abortOnError bool) Error {
 	for key, value := range values {
 		if err := SetByJsonTag(item, key, value); err != nil {
-			return err
+			if abortOnError {
+				return err
+			}
 		}
 	}
 	return nil

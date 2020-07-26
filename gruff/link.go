@@ -18,7 +18,7 @@ func (l Link) ValidateForCreate() Error {
 }
 
 func (l Link) ValidateForUpdate(updates Updates) Error {
-	if err := SetJsonValuesOnStruct(&l, updates); err != nil {
+	if err := SetJsonValuesOnStruct(&l, updates, false); err != nil {
 		return err
 	}
 	return l.ValidateForCreate()

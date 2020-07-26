@@ -398,7 +398,7 @@ func (a Argument) ValidateForUpdate(updates Updates) Error {
 	if a.DeletedAt != nil {
 		return NewBusinessError("An argument that has already been deleted, or has a newer version, cannot be modified.")
 	}
-	if err := SetJsonValuesOnStruct(&a, updates); err != nil {
+	if err := SetJsonValuesOnStruct(&a, updates, false); err != nil {
 		return err
 	}
 	return a.ValidateForCreate()

@@ -223,7 +223,7 @@ func UpdateArangoObject(ctx *ServerContext, obj ArangoObject, updates Updates) E
 	// When a Versioner is updated, it creates a new version
 	if IsVersioner(reflect.TypeOf(obj)) {
 		v := obj.(Versioner)
-		if err := SetJsonValuesOnStruct(v, updates); err != nil {
+		if err := SetJsonValuesOnStruct(v, updates, false); err != nil {
 			return err
 		}
 		if err := v.version(ctx, updates); err != nil {
