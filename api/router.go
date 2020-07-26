@@ -63,6 +63,7 @@ func SetUpRouter(mc MiddlewareConfigurer) *echo.Echo {
 
 	// TODO: Test all these
 	public.GET("/contexts", List)
+	public.GET("/contexts/search", SearchContext)
 	// TODO: Should contexts be gotten using the short name instead of the id?
 	public.GET("/contexts/:id", Get)
 	private.POST("/contexts", Create)
