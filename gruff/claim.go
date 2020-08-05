@@ -51,7 +51,7 @@ type Claim struct {
 	ProArgs       []Argument `json:"proargs" transient:"true"`
 	ConArgs       []Argument `json:"conargs" transient:"true"`
 	Links         []Link     `json:"links,omitempty" transient:"true"`
-	ContextElems  []Context  `json:"contexts,omitempty" transient:"true"`
+	ContextElems  []Context  `json:"contexts" transient:"true"`
 }
 
 // ArangoObject interface
@@ -226,7 +226,24 @@ func (c *Claim) version(ctx *ServerContext, updates Updates) Error {
 	// Contexts
 
 	var newContexts []Context
-	newContexts, _ = updates["contexts"].([]Context)
+	// TODO: move to utility method
+	if contexts, ok := updates["contexts"]; ok {
+		if newContexts, ok = contexts.([]Context); !ok {
+			if mContexts, ok := contexts.([]interface{}); ok {
+				for _, ifContext := range mContexts {
+					context := Context{}
+					mContext := ifContext.(map[string]interface{})
+					if context.Key, ok = mContext["_key"].(string); !ok {
+						return NewBusinessError("Invalid key provided for context")
+					}
+					if err := context.Load(ctx); err != nil {
+						return err
+					}
+					newContexts = append(newContexts, context)
+				}
+			}
+		}
+	}
 	contextEdges, err := oldVersion.ContextEdges(ctx)
 	if err != nil {
 		ctx.Rollback()
